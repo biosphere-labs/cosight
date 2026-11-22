@@ -39,7 +39,7 @@ jobs:
         run: |
           hdiutil verify dist/*.dmg
           bin=$(find dist -path '*/CoSight.app/Contents/MacOS/CoSight' -print -quit)
-          lipo -verify_arch "${{ matrix.macho }}" "$bin"
+          lipo "$bin" -verify_arch "${{ matrix.macho }}"
           cp dist/*.dmg "CoSight-mac-${{ matrix.arch }}.dmg"
       - uses: actions/upload-artifact@v4
         with:
