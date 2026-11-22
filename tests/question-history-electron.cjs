@@ -25,9 +25,10 @@ async function check() {
   let app, page;
   const errors = [];
   async function launch() {
-    app = await electron.launch({...(process.env.COSIGHT_TEST_APP ? {executablePath:process.env.COSIGHT_TEST_APP,args:[]} : {args:['.']}),
+    app = await electron.launch({timeout:45000,...(process.env.COSIGHT_TEST_APP ? {executablePath:process.env.COSIGHT_TEST_APP,args:[]} : {args:['.']}),
       env:{...process.env,COSIGHT_DATA_DIR:root,COSIGHT_PORT:String(port),COSIGHT_USER_DATA_DIR:path.join(root,'profile'),KOKORO_ENSURE:''}});
-    page = await app.firstWindow();
+    page = await app.firstWindow({timeout:45000});
+    page.setDefaultTimeout(30000);
     page.on('pageerror', e => errors.push(e.message));
     await page.locator('#homePicker').waitFor();
     await page.evaluate(() => localStorage.setItem('cosight:voiceEngine', JSON.stringify('kokoro')));

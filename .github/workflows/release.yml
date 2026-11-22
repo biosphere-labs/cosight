@@ -32,6 +32,9 @@ jobs:
       - name: Test application
         run: TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)" npm test
       - name: Exercise saved questions in Electron
+        timeout-minutes: 4
+        env:
+          DEBUG: pw:api
         run: node tests/question-history-electron.cjs
       - name: Build macOS disk image
         run: npx --no-install electron-builder --mac dmg --${{ matrix.arch }} --publish never
