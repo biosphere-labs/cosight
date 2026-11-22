@@ -1,0 +1,88 @@
+/* Compact tour chrome; settings and export retain their existing editors. */
+body:not(.home-mode)>header{padding:8px 16px;gap:10px;background:var(--bg);min-height:46px}
+body:not(.home-mode) #hbtns{gap:6px;align-items:center}
+body:not(.home-mode) #bar{width:60px;height:2px}
+body:not(.home-mode) #pill{border:0;padding:0;font-size:11px}
+body:not(.home-mode) #rail{display:none}
+body:not(.home-mode) #question{max-width:30vw}
+body:not(.home-mode) #layout{display:flex;gap:2px;border:0}
+body:not(.home-mode) #layout button,body:not(.home-mode) .quiet-icon,body:not(.home-mode) #bMute,body:not(.home-mode) #bMic{border:0;background:transparent;color:var(--dim);width:30px;height:30px;padding:6px;display:inline-flex;align-items:center;justify-content:center;border-radius:5px}
+body:not(.home-mode) #layout button.on,body:not(.home-mode) .quiet-icon:hover,body:not(.home-mode) #layout button:hover{background:var(--line);color:var(--ink)}
+body:not(.home-mode) .cap{background:var(--bg);border-bottom:0;padding:8px 14px;font-size:12px;min-height:40px}
+body:not(.home-mode) #controls{border-top:1px solid var(--line);gap:5px;padding:7px 16px}
+body:not(.home-mode) #bottom{background:var(--bg);height:20vh}
+body:not(.home-mode) #askrow{padding:4px 16px 12px;gap:4px}
+body:not(.home-mode) #askfield{border-color:transparent;background:var(--panel);border-radius:8px}
+body:not(.home-mode) #askin{font-size:13px}
+body:not(.home-mode) #note{font-size:13px;padding:8px 18px}
+#workspaceActions{position:fixed;right:0;top:46px;bottom:0;width:min(320px,100vw);z-index:40;background:var(--panel);border-left:1px solid var(--line);padding:18px;overflow:auto;box-shadow:-12px 0 30px #0002}
+#workspaceActions[hidden],#workspaceTooltip[hidden]{display:none}
+#workspaceActions h3{font-size:12px;font-weight:500;color:var(--dim);margin-top:24px}
+.workspace-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+#workspaceGeneral{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+#workspaceGeneral button{font-size:13px;padding:8px 10px}
+#workspaceGeneral #modesw{padding:0;border:0}
+#workspaceAudio{display:flex;gap:12px;flex-wrap:wrap}
+#workspaceTooltip{position:fixed;z-index:200;background:var(--panel);border:1px solid var(--line);color:var(--ink);padding:5px 9px;border-radius:5px;font-size:12px;pointer-events:none;max-width:280px;box-shadow:0 4px 18px #0003}
+body.L-stack #panes{flex-direction:column;overflow:auto}
+body.L-stack #left,body.L-stack #right{flex:1 0 48%;width:100%;min-height:180px}
+body.L-stack #vsplit{display:none}
+@media(max-width:760px){body:not(.home-mode) #question{display:none}body:not(.home-mode)>header{flex-wrap:wrap}body:not(.home-mode) #bar{display:none}}
+body:not(.home-mode) .quiet-icon svg{width:16px!important;height:16px!important;flex:none}
+body:not(.home-mode) #bPlay{margin-left:auto}
+body:not(.home-mode) #bLive{margin-left:auto}
+body:not(.home-mode) #spacer{display:none}
+#library .settings-toolbar{position:sticky;top:-24px;margin:-24px -24px 20px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;z-index:2}
+#library .settings-toolbar>div{display:flex;gap:8px}
+#library .setup-brand img{width:34px;height:34px}
+#library .setup-brand h3{display:none}
+#library .provider-connect{margin:12px 0 20px;padding:14px;border:1px solid var(--line);border-radius:8px}
+#library .agent-advanced{margin:16px 0}
+#library #libMessage{position:sticky;bottom:-24px;background:var(--panel);padding:10px 0;margin-bottom:0}
+/* Stable transport geometry: status never determines playback position. */
+body:not(.home-mode) #controls{display:grid;grid-template-columns:minmax(0,1fr) 112px minmax(0,1fr);column-gap:12px;flex-wrap:nowrap;min-height:46px}
+#transportContext,#transportPlayback,#transportActions{display:flex;align-items:center;gap:6px;min-width:0}
+#transportPlayback{justify-content:center}
+#transportActions{justify-content:flex-end}
+body:not(.home-mode) #controls button{flex:0 0 30px;width:30px;height:30px;min-width:30px;margin:0;padding:6px;display:inline-flex;justify-content:center;align-items:center}
+#transportContext #voice{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0;font-size:11px}
+#transportContext #atime{flex:none;font-variant-numeric:tabular-nums;white-space:nowrap}
+#workspaceActions{width:min(272px,100vw);padding:18px 20px}
+#workspaceActions h3{text-align:center;margin-top:24px}
+#workspaceGeneral{align-items:center;gap:16px}
+#workspaceGeneral>button{width:auto;max-width:100%;padding:7px 16px}
+#workspaceShortcuts{display:flex;justify-content:center;gap:10px}
+#workspaceShortcuts button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:7px;border:0;background:transparent}
+#workspaceShortcuts button:hover{background:var(--line)}
+#workspaceAudio{justify-content:center;align-items:center;gap:10px}
+#workspaceAudio #bAudio{width:auto;padding:6px 10px}
+#workspaceGeneral #modesw{justify-content:center}
+#workspaceActions button[hidden]{display:none}
+/* Keep all transport actions within easy reach on the right. */
+body:not(.home-mode) #controls{grid-template-columns:minmax(0,1fr) 112px 66px;column-gap:20px}
+#transportPlayback,#transportActions{justify-content:flex-end}
+#questionHistory{width:min(560px,90vw);max-height:75vh;box-sizing:border-box;padding:20px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:auto}
+#questionHistory::backdrop{background:#080c14aa}
+#questionHistory .history-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}
+#questionHistory h2{margin:0;font-size:19px}
+#questionHistory input{box-sizing:border-box;width:100%;padding:9px 10px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:5px}
+#questionHistory [role=status]:empty{display:none}
+#questionHistory ul{list-style:none;margin:12px 0 0;padding:0}
+#questionHistory li{padding:12px 0;border-top:1px solid var(--line)}
+#questionHistory li strong{display:block;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+#questionHistory li small{display:block;margin:5px 0 9px;color:var(--dim)}
+#questionHistory li div{display:flex;gap:8px}
+
+#route{padding-top:0}
+.route-heading{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;padding:5px 8px 5px 14px;background:#12151c;color:var(--dim);font-size:12px}
+#closeRoute{width:32px;height:32px;padding:0;font-size:21px;line-height:1;background:transparent;color:var(--ink);border:0}
+#closeRoute:hover,#closeRoute:focus-visible{background:var(--line)}
+#route .eh{top:42px}
+
+.source-markdown{box-sizing:border-box;max-width:80ch;margin:0 auto;padding:18px 24px 50px;color:var(--ink);font:14px/1.65 system-ui,sans-serif;overflow-wrap:anywhere}
+.source-markdown h1,.source-markdown h2,.source-markdown h3{line-height:1.25;margin:1.2em 0 .5em}
+.source-markdown table{border-collapse:collapse;width:100%}.source-markdown td,.source-markdown th{border:1px solid var(--line);padding:5px 9px;text-align:left}
+.source-markdown pre{overflow:auto;background:var(--panel);padding:12px;border-radius:6px}.source-markdown code{color:#a8cedf}
+.source-markdown blockquote{border-left:2px solid var(--dim);margin-left:0;padding-left:12px}
+.source-markdown .rng,.source-markdown .hi,.source-markdown .brush{background:#202b3c;box-shadow:-3px 0 var(--accent)}
+.source-markdown .md-link{color:#9bc9dd}

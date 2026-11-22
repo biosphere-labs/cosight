@@ -1,0 +1,14 @@
+#analysisPanel{color:var(--text,#e4e8f2);background:#141923;border:1px solid #43526b;border-radius:16px;width:min(1100px,94vw);max-height:90vh;padding:24px;overflow:auto}
+#analysisPanel::backdrop{background:#080c15bd}
+#analysisPanel header{display:flex;align-items:center;justify-content:space-between;gap:16px}
+#analysisPanel h2{margin:0}#analysisProject{color:#9bbcec;overflow-wrap:anywhere}
+#analysisPlugins{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:18px 0}
+#analysisPlugins details,#analysisTools form,#analysisResult article{border:1px solid #354258;border-radius:10px;padding:12px}
+#analysisPanel summary{cursor:pointer}#analysisPanel label{display:block;margin:10px 0}
+#analysisPanel input:not([type=checkbox]),#analysisPanel select{box-sizing:border-box;background:#0d121d;color:inherit;border:1px solid #56647c;border-radius:6px;padding:8px;width:100%;margin-top:5px}
+#analysisPanel button{padding:8px 12px;margin:4px;border-radius:7px;background:#23374c;color:#e6f2ff;border:1px solid #52749a;cursor:pointer}
+#analysisPanel button[aria-pressed=true]{background:#31577b}#analysisPanel button:disabled{opacity:.5;cursor:default}
+#analysisViews{display:flex;flex-wrap:wrap;border-bottom:1px solid #354258;margin-bottom:12px}
+#analysisTools{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+#analysisPanel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:500px;overflow:auto;font:12px/1.6 monospace}
+#analysisMessage{color:#a8d9cf}#analysisRunning{color:#b9b2f4}#analysisResult article{margin-top:10px}.analysisDiagram{overflow:auto;max-height:600px}.analysisDiagram svg{min-width:600px;max-width:100%;height:auto}

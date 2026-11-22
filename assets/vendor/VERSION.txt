@@ -1,0 +1,1 @@
+mermaid 12.1.0, dist/mermaid.min.js (UMD), pinned via npm pack mermaid@12.1.0

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">CoSight — Atlas</title><desc id="desc">A bright lens highlights one node in a map of connected code modules.</desc>
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#19283f"/><stop offset="1" stop-color="#101827"/></linearGradient><linearGradient id="lens" x2="1" y2="1"><stop stop-color="#9cddff"/><stop offset="1" stop-color="#6b9fff"/></linearGradient></defs>
+<rect x="40" y="40" width="944" height="944" rx="216" fill="url(#bg)"/>
+<path d="M301 310h301v301H301V310m0 301v139m301-440h143" fill="none" stroke="#526b91" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="235" y="244" width="132" height="132" rx="32" fill="#7de3c2"/><rect x="536" y="244" width="132" height="132" rx="32" fill="#b2a0ff"/><rect x="235" y="545" width="132" height="132" rx="32" fill="#70b5f5"/>
+<circle cx="602" cy="611" r="151" fill="#182940" stroke="url(#lens)" stroke-width="48"/>
+<path d="m711 720 109 109" fill="none" stroke="#7dafff" stroke-width="61" stroke-linecap="round"/>
+<rect x="553" y="562" width="98" height="98" rx="26" fill="#b9e9ff"/>
+</svg>

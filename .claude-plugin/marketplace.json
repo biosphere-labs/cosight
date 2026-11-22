@@ -1,0 +1,11 @@
+{
+  "name": "cosight",
+  "owner": { "name": "Biosphere Labs" },
+  "plugins": [
+    {
+      "name": "cosight",
+      "source": "./",
+      "description": "Guided, spoken code tours on a local web page"
+    }
+  ]
+}

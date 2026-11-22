@@ -1,0 +1,10 @@
+{
+  "eslint": "9.39.1",
+  "ruff": "0.14.3",
+  "generatedAt": "2026-11-02T00:28:40.062Z",
+  "commands": [
+    "eslint --no-config-lookup --rule no-unused-vars:error --format json src/ui.js",
+    "ruff check --isolated --output-format json src/sample.py"
+  ],
+  "scope": "Actual CLI-produced JSON. Tests remap only absolute source filename to isolated fixture project."
+}

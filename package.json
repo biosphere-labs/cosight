@@ -1,0 +1,59 @@
+{
+  "name": "cosight",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stay connected to codebases built with software factories through guided exploration.",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.node.test.mjs",
+    "pack": "electron-builder --dir",
+    "install:desktop": "node scripts/install-desktop.cjs",
+    "mcp": "node assets/agent-mcp.js standalone",
+    "dist": "electron-builder",
+    "test:pure": "vitest run",
+    "check": "tsc --noEmit",
+    "test:desktop": "node tests/electron-smoke.cjs"
+  },
+  "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-builder": "^26.0.0",
+    "playwright": "^1.64.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "build": {
+    "appId": "ai.biospherelabs.cosight",
+    "productName": "CoSight",
+    "files": [
+      "electron/**",
+      "assets/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/@ast-grep/lang-*/prebuilds/**"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icons/atlas.icns",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "CoSight uses your microphone to transcribe questions locally with Moonshine."
+      }
+    },
+    "artifactName": "CoSight-${version}-${os}-${arch}.${ext}"
+  },
+  "dependencies": {
+    "@ast-grep/lang-python": "0.0.6",
+    "@ast-grep/napi": "0.51.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@moonshine-ai/moonshine-wasm": "^0.1.5",
+    "cordis": "4.0.0-rc.12",
+    "dependency-cruiser": "18.7.0",
+    "markdown-it": "15.0.3"
+  },
+  "author": "Biosphere Labs"
+}

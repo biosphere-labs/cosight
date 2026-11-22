@@ -1,0 +1,2062 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CoSight</title>
+<link rel="icon" type="image/svg+xml" href="icons/atlas.svg">
+<link rel="apple-touch-icon" href="icons/atlas.png">
+<link rel="stylesheet" href="splash.css">
+<link rel="stylesheet" href="analysis.css">
+<link rel="stylesheet" href="home.css">
+<link rel="stylesheet" href="document.css">
+<link rel="stylesheet" href="workspace-plugins.css">
+<link rel="stylesheet" href="speech.css">
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161922; --line:#232838; --ink:#e6e9f0; --dim:#98a1b5;
+    --accent:#7aa2f7; --hot:#f7768e; --ok:#9ece6a; --warn:#e0af68; --alt:#bb9af7;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",system-ui,sans-serif;
+       display:flex;flex-direction:column;overflow:hidden}
+  button{background:#1b2130;color:var(--ink);border:1px solid #2b3345;border-radius:6px;
+         padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  button:hover:not(:disabled){background:#232c40;border-color:#3a4560}
+  button:disabled{opacity:.4;cursor:default}
+  button.go{border-color:var(--accent);color:#cddcff}
+  button.ask{border-color:var(--warn);color:#f4d9a6}
+  button.icon{padding:5px 9px;font-size:16px;line-height:1;display:inline-flex;align-items:center}
+  button.icon svg{display:block}
+  button.icon.off{color:var(--hot);border-color:#4a2a33}
+  kbd{background:#0c0e13;border:1px solid #2b3345;border-bottom-width:2px;border-radius:4px;
+      padding:1px 6px;font-size:11.5px;color:#b9c2d4;font-family:inherit}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid #3a4560;border-top-color:var(--accent);
+        border-radius:50%;animation:spin .9s linear infinite;vertical-align:-2px;flex:none}
+  .spin.big{width:34px;height:34px;border-width:3px}
+  /* Thin, quiet scrollbars everywhere: no track, a muted
+     rounded thumb that brightens under the pointer, and an empty corner where two bars meet.
+     Chrome ignores ::-webkit-scrollbar once scrollbar-width/-color is set, so the standard
+     properties go only to browsers without the WebKit ones (Firefox). */
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#2b3345;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background-color:#4a5571}
+  ::-webkit-scrollbar-thumb:active{background-color:#5b6785}
+  @supports not selector(::-webkit-scrollbar){
+    *{scrollbar-width:thin;scrollbar-color:#2b3345 transparent}
+    *:hover{scrollbar-color:#4a5571 transparent}
+  }
+
+  /* ---------- header ---------- */
+  header{padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel);
+         display:flex;align-items:center;gap:12px;flex:none;min-height:46px}
+  #dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+  #dot.stale{background:var(--hot)}
+  #title{font-weight:600;flex:none}
+  #question{color:var(--dim);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  #pill{display:flex;align-items:center;gap:7px;padding:2px 9px;border:1px solid var(--line);border-radius:12px;
+        font-size:11.5px;color:var(--dim);white-space:nowrap;flex:none}
+  #pill.busy{border-color:#3a4560;color:#b9c2d4}
+  #pill.done{border-color:#2f4a2a;color:var(--ok)}
+  #pill.off{border-color:#4a2a33;color:var(--hot)}
+  #prog{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--dim);font-size:13px;flex:none}
+  #bar{width:140px;height:5px;background:var(--line);border-radius:3px;overflow:hidden}
+  #bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+  #pill.hide{display:none}
+  #hbtns{display:flex;gap:6px;flex:none}
+  #rate{display:inline-flex;align-items:center}
+  #rate button{border-radius:0;padding:5px 8px;font-size:12.5px;line-height:1;font-variant-numeric:tabular-nums}
+  #rate button:first-child{border-radius:6px 0 0 6px} #rate button:last-child{border-radius:0 6px 6px 0}
+  #rate #bRate{border-left:0;border-right:0;min-width:46px;color:#b9c2d4}
+  #rate.changed #bRate{color:var(--warn)}
+  /* Review plays the tour; Export mode (formerly Edit) turns the route into the list an export is made from. */
+  #modesw{display:flex;flex:none;padding-left:12px;border-left:1px solid var(--line)}
+  #modesw button{border-radius:0;margin-left:-1px;padding:5px 11px;font-size:12.5px;line-height:1}
+  #modesw button:first-child{border-radius:6px 0 0 6px;margin-left:0}
+  #modesw button:last-child{border-radius:0 6px 6px 0}
+  #modesw button.on{background:#27324a;border-color:#3a4560;color:#fff}
+  body.editing #modesw button.on{background:#3a2f17;border-color:#6b5426;color:#f4d9a6}
+
+  /* ---------- body ---------- */
+  /* The route list slides out OVER the panes from a rail of stop numbers; the rail alone takes
+     width, so opening the list never resizes the panes and the diagram never refits. */
+  main{flex:1;display:flex;min-height:0;position:relative;overflow:clip}
+  #bRoute.on{background:#27324a;border-color:#3a4560}
+  #route{position:absolute;left:0;top:0;bottom:0;z-index:6;width:240px;border-right:1px solid var(--line);
+         background:#12151c;overflow-y:auto;padding:10px 0;transform:translateX(-100%);visibility:hidden;
+         transition:transform .2s ease,box-shadow .2s ease,visibility 0s linear .2s}
+  /* visibility, not only the transform: a closed list takes no clicks, hovers or Tab focus. */
+  body.routeopen #route{transform:none;visibility:visible;box-shadow:6px 0 28px rgba(0,0,0,.5);
+         transition:transform .2s ease,box-shadow .2s ease,visibility 0s}
+  @media (prefers-reduced-motion:reduce){#route,body.routeopen #route{transition:none}}
+  #rail{flex:none;width:30px;border-right:1px solid var(--line);background:#12151c;overflow-y:auto;overflow-x:hidden;
+        scrollbar-width:none;padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:2px}
+  #rail::-webkit-scrollbar{display:none}
+  /* Marked as the full list marks them: delivered green, unwritten grey, the one being written pulsing. */
+  .rl{flex:none;width:22px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-variant-numeric:tabular-nums;color:var(--dim);cursor:pointer}
+  .rl:hover{background:#1b2130;color:var(--ink)}
+  .rl.seen{color:var(--ok)}
+  .rl.pending{color:#3f4658;cursor:default}
+  .rl.pending:hover{background:none;color:#3f4658}
+  .rl.writing{color:var(--accent);animation:pulse 1.4s ease-in-out infinite}
+  .rl.cur,.rl.cur:hover{background:var(--accent);color:#0f1115;font-weight:700}
+  /* An answer: a small dot under the stop it was asked at; the hit box is bigger than the dot. */
+  .rd{flex:none;width:22px;height:9px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .rd::after{content:'';width:5px;height:5px;border-radius:50%;background:var(--warn);opacity:.55}
+  .rd:hover::after{opacity:1}
+  .rd.cur::after{opacity:1;width:7px;height:7px;box-shadow:0 0 0 2px rgba(224,175,104,.3)}
+  .rd.waiting{cursor:default}
+  .rd.waiting::after{background:#6c7488;opacity:1;animation:pulse 1.4s ease-in-out infinite}
+  #route .rh{padding:4px 14px 9px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+  .rstep{display:flex;gap:9px;padding:7px 14px;cursor:pointer;border-left:3px solid transparent;
+         color:var(--dim);font-size:13px;line-height:1.4;align-items:flex-start}
+  .rstep:hover{background:#171b24;color:var(--ink)}
+  .rstep .rn{flex:none;width:17px;text-align:right;font-variant-numeric:tabular-nums;opacity:.8}
+  .rstep .rt{min-width:0;flex:1}
+  .rstep .sub{display:block;font-size:11px;color:#5f687c;margin-top:1px}
+  .rstep.done{color:#7f8aa0}
+  .rstep.cur{color:var(--ink);background:#1a1f2b;border-left-color:var(--accent);font-weight:600}
+  .rstep.cur .sub{font-weight:400}
+  .rstep.seen .rn{color:var(--ok)}
+  .rstep.pending{color:#525a6d;cursor:default}
+  .rstep.pending:hover{background:none;color:#525a6d}
+  .rstep.pending .rn{opacity:.5}
+  .rstep.writing .rn{color:var(--accent);opacity:1}
+  .rstep.aside{padding:5px 14px 5px 38px;font-size:12.5px}
+  .rstep.aside .rn{width:12px;color:var(--warn);opacity:1}
+  .rstep.aside.cur{border-left-color:var(--warn)}
+  .rstep.aside.waiting{color:#6c7488;cursor:default;font-style:italic}
+  .rstep.aside.waiting:hover{background:none}
+
+  /* Export mode's list (formerly Edit): every stop and answer, dragged into order, ticked to go in the export. */
+  body.editing #route{width:290px;padding-top:0}
+  #route .eh{position:sticky;top:0;z-index:1;background:#12151c;display:flex;align-items:center;gap:8px;
+             padding:9px 10px 9px 14px;border-bottom:1px solid var(--line);margin-bottom:6px}
+  #route .eh .rh{padding:0;flex:1}
+  #route .eh button{padding:4px 11px;font-size:12px}
+  .eitem{display:flex;align-items:flex-start;gap:7px;padding:6px 6px 6px 8px;border-left:3px solid transparent;
+         color:var(--dim);font-size:13px;line-height:1.4;cursor:pointer;user-select:none}
+  .eitem:hover{background:#171b24;color:var(--ink)}
+  .eitem.cur{color:var(--ink);background:#1a1f2b;border-left-color:var(--warn);font-weight:600}
+  .eitem.nest{padding-left:26px;font-size:12.5px}
+  .eitem .grip{flex:none;color:#3d4457;cursor:grab;padding-top:3px;display:flex}
+  .eitem:hover .grip{color:#8891a5}
+  .eitem .rn{flex:none;width:17px;text-align:right;font-variant-numeric:tabular-nums;opacity:.8}
+  .eitem.ans .rn{color:var(--warn);opacity:1;width:12px}
+  .eitem .rt{flex:1;min-width:0}
+  .eitem input.tick{flex:none;margin:3px 0 0;width:14px;height:14px;accent-color:var(--warn);cursor:pointer}
+  /* Unticked: stays where it is, dimmed, so ticking it again puts it back in the same place. */
+  .eitem.out .rt,.eitem.out .rn{opacity:.42;text-decoration:line-through;text-decoration-color:#3d4457}
+  .eitem.out.cur{font-weight:400}
+  .eitem.dragging{opacity:.3}
+  .eitem.dropb{box-shadow:inset 0 2px 0 var(--accent)}
+  .eitem.dropa{box-shadow:inset 0 -2px 0 var(--accent)}
+  #elist{min-height:28px}
+  #route .etick{display:flex;gap:6px;padding:0 10px 6px 14px}
+  #route .etick button{padding:2px 9px;font-size:11.5px}
+  .ehint{padding:6px 14px;font-size:11.5px;color:#5f687c;line-height:1.5}
+
+  #stage{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+  #panes{flex:1;display:flex;min-height:0}
+  #left{min-width:0;display:flex;flex-direction:column;flex:0 0 50%}
+  #right{min-width:0;display:flex;flex-direction:column;flex:1 1 0}
+  #vsplit{flex:none;width:6px;cursor:col-resize;background:var(--line);transition:background .15s}
+  #vsplit:hover,#vsplit.drag{background:#3a4560}
+  body.L-map #right,body.L-map #vsplit{display:none}
+  body.L-map #left{flex:1 1 0}
+  body.L-code #left,body.L-code #vsplit{display:none}
+  #hsplit{flex:none;height:6px;cursor:row-resize;background:var(--line);transition:background .15s}
+  #hsplit:hover,#hsplit.drag{background:#3a4560}
+
+  .cap{padding:0 12px;height:32px;display:flex;align-items:center;gap:10px;font-size:11px;
+       letter-spacing:.09em;text-transform:uppercase;color:var(--dim);
+       border-bottom:1px solid var(--line);background:var(--panel);flex:none;white-space:nowrap;min-width:0}
+  .cap .why{text-transform:none;letter-spacing:0;color:#6d7691;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .cap .tools{margin-left:auto;display:flex;gap:5px;align-items:center;flex:none}
+  .cap button{padding:2px 7px;font-size:11px;border-radius:4px}
+  .seg{display:flex;flex:none}
+  .seg button{border-radius:0;margin-left:-1px;min-width:68px}
+  .seg button:first-child{border-radius:6px 0 0 6px;margin:0}
+  .seg button:last-child{border-radius:0 6px 6px 0}
+  .seg button.on{background:#27324a;border-color:#3a4560;color:#fff}
+  #zlvl{font-variant-numeric:tabular-nums;color:#6d7691;min-width:38px;text-align:right;font-size:11px}
+
+  #dgwrap{flex:1;overflow:hidden;position:relative;cursor:grab;background:
+      radial-gradient(circle at 1px 1px,#1b1f2a 1px,transparent 0) 0 0/22px 22px}
+  #dgwrap.drag{cursor:grabbing}
+  #dgpan{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;transition:opacity .4s ease}
+  /* The moves between stops, and to the box the voice is on, glide slowly with a gentle ease in
+     and out, so the eye can follow (the page sets --glide per move); wheel, drag and the buttons
+     stay immediate (no .anim). */
+  #dgpan.anim{transition:opacity .4s ease,transform var(--glide,1.8s) cubic-bezier(.45,0,.55,1)}
+  #dgpan.fade{opacity:0}
+  #dgpan svg{display:block}
+  /* The box the tour is on (the overview's box for this stop, or the box in the stop's own diagram
+     the voice is talking about) takes the colour and a glow; both fade in and out rather than blink.
+     The class is the page's own, `tmark`, so a diagram's own Mermaid classes (classDef here) stay. */
+  #dgpan g.node,#dgpan g.cluster,#dgpan g.actor{transition:filter .6s ease}
+  #dgpan g.node rect,#dgpan g.node polygon,#dgpan g.node path,#dgpan g.node circle,#dgpan g.node ellipse,
+  #dgpan g.cluster rect,#dgpan g.actor rect{transition:stroke .6s ease,stroke-width .6s ease}
+  #dgpan g.node.tmark rect,#dgpan g.node.tmark polygon,#dgpan g.node.tmark path,#dgpan g.node.tmark circle,#dgpan g.node.tmark ellipse,
+  #dgpan g.cluster.tmark rect,#dgpan g.actor.tmark rect{stroke:var(--warn)!important;stroke-width:3px!important}
+  #dgpan g.node.tmark,#dgpan g.cluster.tmark,#dgpan g.actor.tmark{filter:drop-shadow(0 0 9px rgba(224,175,104,.7))}
+  /* Motion off: the colour changes at once too. */
+  #dgpan.still g.node,#dgpan.still g.cluster,#dgpan.still g.actor,#dgpan.still g.node *,#dgpan.still g.cluster *,#dgpan.still g.actor *{transition:none!important}
+  #bFlip{display:none}
+  #dgpan.brushing [data-lines],#dgpan.brushing [data-dim]{opacity:.28;transition:opacity .12s}
+  #dgpan [data-lines]{cursor:pointer}
+  #dgpan [data-lines].on{opacity:1}
+  #dgpan [data-lines].on rect,#dgpan [data-lines].on circle,#dgpan [data-lines].on ellipse{
+    stroke-width:2.6;filter:drop-shadow(0 0 7px rgba(122,162,247,.55))}
+  #dgpan g.node,#dgpan g.actor,#dgpan .actor{cursor:pointer}
+  #dgpan g.node:hover rect,#dgpan g.node:hover polygon,#dgpan g.node:hover circle,#dgpan g.node:hover path.basic{
+    filter:drop-shadow(0 0 6px rgba(122,162,247,.6))}
+  .idle{color:var(--dim);text-align:center;padding:40px 24px;font-size:13.5px;line-height:1.7}
+  .idle b{color:#b9c2d4;display:block;margin-bottom:5px;font-size:14px}
+  #dgidle{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;align-items:center;gap:8px;
+          pointer-events:none}
+  #dgidle.on{display:flex}
+  #pop{position:absolute;z-index:5;background:var(--panel);border:1px solid #3a4560;border-radius:8px;padding:10px 12px;
+       display:none;flex-direction:column;gap:6px;min-width:260px;max-width:340px;box-shadow:0 8px 30px rgba(0,0,0,.5);cursor:default}
+  #pop.on{display:flex}
+  #pop .pl{font-size:12px;color:var(--dim);margin-bottom:2px}
+  #pop .pl b{color:var(--ink)}
+  #pop button{text-align:left}
+  #pop .row{display:flex;gap:6px}
+  #pop input{flex:1;background:#0c0e13;border:1px solid #2b3345;border-radius:6px;color:var(--ink);padding:5px 8px;font:13px inherit;font-family:inherit}
+
+  /* Code pane: GapStyle colours (gaplo917/GapStyle, MIT) on a darker ground than its
+     #282c34 editor, for contrast. Default text is GapStyle's Darcula grey-blue. */
+  #codewrap{flex:1;overflow:auto;background:#101215;position:relative}
+  table.code{border-collapse:collapse;width:max-content;min-width:100%;color:#A9B7C6;
+             font:11.5px/1.45 "Hack","JetBrains Mono","Cascadia Mono",Consolas,monospace}
+  table.code td{padding:0 10px;vertical-align:top;white-space:pre}
+  td.ln{text-align:right;color:#5c6370;user-select:none;width:1%;border-right:1px solid var(--line);background:#0b0d10;
+        border-left:3px solid transparent;position:sticky;left:0}
+  tr.rng td{background:#15181f}
+  tr.rng td.ln{border-left-color:#3a4560;color:#8891a5}
+  tr.hi td{background:#262a33}
+  tr.hi td.ln{color:#FD971F;border-left-color:#FD971F}
+  tr.linked{cursor:pointer}
+  tr.brush td{background:#20304d}
+  tr.brush td.ln{color:var(--accent);border-left-color:var(--accent)}
+  .k{color:#F92672;font-weight:bold} .f{color:#A6E22E} .t{color:#66D9EF} .n{color:#AE81FE}
+  .s{color:#E6DB75} .si{color:#CC7832} .rx{color:#CC7832} .cn{color:#4186F8}
+  .m{color:#CF8823} .v{color:#CBAD96} .d{color:#BBB529} .c{color:#808080}
+  .dc{color:#77B767} .dt{color:#526D4A;font-weight:bold} .dp{color:#8A653B}
+  #codeidle{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;align-items:center;gap:8px}
+  #codeidle.on{display:flex}
+  .capnote{padding:6px 14px;background:#2a2410;color:#f4d9a6;font-size:12px;border-bottom:1px solid #4a3d1a}
+
+  #linkbar{flex:none;height:0;overflow:hidden;background:#141b28;border-top:1px solid var(--line);
+           color:#9fb4e0;font-size:12.5px;display:flex;align-items:center;gap:9px;padding:0 16px;transition:height .15s}
+  #linkbar.on{height:30px}
+  #linkbar b{color:var(--ink);font-weight:600}
+  #linkbar .pin{margin-left:auto;color:var(--warn);font-size:11px}
+
+  /* The stage before any stop exists: what Claude is doing right now. */
+  #status{position:absolute;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:3}
+  #status.on{display:flex}
+  #status .card{text-align:center;max-width:560px;padding:30px}
+  #status h2{margin:16px 0 6px;font-size:18px;color:var(--ink);font-weight:600}
+  #status p{margin:0;color:var(--dim);font-size:14px;line-height:1.6}
+  #status .q{margin-top:18px;color:#b9c2d4;font-size:14px;border-top:1px solid var(--line);padding-top:14px}
+
+  /* ---------- narration and controls ---------- */
+  #bottom{flex:none;height:24vh;min-height:120px;border-top:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column}
+  #note{flex:1;overflow:auto;padding:10px 16px 4px;min-height:0;font-size:13.5px;line-height:1.5}
+  #note h2{margin:0 0 4px;font-size:14px;color:var(--accent)}
+  #note p{margin:0 0 6px}
+  #note code{background:#0c0e13;padding:1px 5px;border-radius:3px;font-size:12px;color:var(--warn)}
+  #note .ask{border-left:3px solid var(--warn);padding:4px 0 4px 12px;margin:0 0 10px;color:#c9b189}
+  #note .say{color:var(--ink)}
+  #note .more{color:#c3cad8;border-top:1px dashed var(--line);padding-top:8px;margin-top:4px}
+  /* Every button and the question box down here share one height, and the two that talk to
+     Claude share one width, so the rows line up. */
+  #bottom button{height:30px;padding:0 12px;font-size:12.5px}
+  #controls{display:flex;align-items:center;gap:8px;padding:7px 16px;border-top:1px solid #1d2230;flex:none;flex-wrap:wrap}
+  #atime{color:#6d7691;font-size:11.5px;font-variant-numeric:tabular-nums;min-width:74px}
+  #voice{color:#8891a5;font-size:12px;display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden;white-space:nowrap}
+  #spacer{flex:1}
+  #askrow{display:flex;gap:8px;padding:0 16px 9px;flex:none;align-items:center}
+  #askrow button{width:84px;padding:0}
+  #askin{flex:1;height:30px;background:#0c0e13;border:1px solid #2b3345;border-radius:6px;color:var(--ink);
+         padding:0 11px;font-size:13px;font-family:inherit;min-width:0}
+  #askin:focus{outline:none;border-color:#3a4560}
+  #sent{color:var(--ok);font-size:12.5px;padding:0 16px 8px;display:none}
+  #sent.on{display:block}
+  /* Silence once cost an hour of debugging. If the browser blocks playback, say so loudly. */
+  #unmute{display:none;align-items:center;gap:10px;padding:9px 16px;background:#3a2a10;
+          border-top:1px solid var(--warn);color:#f4d9a6;font-size:13px;flex:none}
+  #unmute.on{display:flex}
+
+  #help,#settings{position:fixed;inset:0;background:rgba(8,10,14,.86);display:none;align-items:center;justify-content:center;z-index:9}
+  #help.on,#settings.on{display:flex}
+  #help .card,#settings .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px 26px;max-width:680px}
+  #help h3,#settings h3{margin:0 0 14px;font-size:16px;color:var(--accent)}
+  #help table{border-collapse:collapse;font-size:13.5px}
+  #help td{padding:4px 12px 4px 0;vertical-align:top}
+  #help td:first-child{white-space:nowrap}
+  #settings .card{min-width:360px}
+  #settings .row{display:flex;align-items:center;gap:14px;font-size:13.5px}
+  #settings .row b{flex:1;font-weight:600}
+  #settings .note{margin:8px 0 0;font-size:12.5px;color:var(--dim);line-height:1.5;max-width:420px}
+
+  #exp{position:fixed;inset:0;background:rgba(8,10,14,.86);display:none;align-items:center;justify-content:center;z-index:9}
+  #exp.on{display:flex}
+  #exp .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 20px 18px;
+             width:min(920px,94vw);height:min(780px,90vh);display:flex;flex-direction:column;gap:10px}
+  #exp .top{display:flex;align-items:center;gap:10px}
+  #exp h3{margin:0;font-size:16px;color:var(--accent);flex:1}
+  #exp label{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--dim)}
+  #xTitle{flex:1;height:30px;background:#0c0e13;border:1px solid #2b3345;border-radius:6px;color:var(--ink);
+          padding:0 11px;font-size:13px;font-family:inherit;min-width:0}
+  #xTitle:focus{outline:none;border-color:#3a4560}
+  #xStats{font-size:12px;color:var(--dim)}
+  #xPrev{flex:1;margin:0;overflow:auto;background:#0c0e13;border:1px solid var(--line);border-radius:6px;padding:12px 14px;
+         color:#c3cad8;white-space:pre-wrap;overflow-wrap:anywhere;
+         font:12px/1.5 "Hack","JetBrains Mono","Cascadia Mono",Consolas,monospace}
+  #exp .row{display:flex;align-items:center;gap:8px}
+  #exp .row button{height:30px}
+  #xMsg{font-size:12.5px;color:var(--ok);min-width:0;overflow-wrap:anywhere;user-select:text}
+</style>
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body class="L-split home-mode">
+<script src="narration-text.js"></script>
+<section id="home" aria-label="Project home"><p>Getting your project ready…</p></section>
+<div id="splash" class="loading" role="status" aria-live="polite" aria-label="CoSight startup">
+  <div class="splash-content">
+    <img src="icons/atlas-loading.svg" alt="" width="176" height="176">
+    <div class="splash-copy"><div class="splash-brand">CoSight</div>
+      <h1 id="splashTitle">Getting your bearings</h1>
+      <p id="splashMessage">Connecting to your local workspace…</p>
+    </div>
+    <div class="splash-actions"><button id="splashSetup" class="go">Agents &amp; providers</button><button id="splashSkip">Browse existing tours</button><button id="splashStop" hidden>Stop loading tour</button></div>
+  </div>
+</div>
+<header>
+  <button id="bRoute" aria-controls="route" class="icon" title="Pin the route list open"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg></button>
+  <div id="dot" title="connected to the tour server"></div>
+  <div id="title">CoSight</div>
+  <div id="question"></div>
+  <div id="prog"><span id="pill"><span id="pillspin" class="spin" style="display:none"></span><span id="pilltext">connecting</span></span>
+    <span id="count"></span><div id="bar"><i></i></div></div>
+  <div id="hbtns">
+    <button id="bHome">Overview</button>
+    <button id="bLibrary">Settings</button>
+    <button id="bAnalysis" hidden>Analysis &amp; plugins</button>
+    <button id="bReturnLive" hidden>Return to live tour</button>
+    <button id="bMute" class="icon" title="Mute or unmute the voice (M)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+    <span id="rate"><button id="bSlower" class="icon" title="Slower ([)">&minus;</button><button id="bRate" title="Voice speed. Click to go back to 1×">1.0&times;</button><button id="bFaster" class="icon" title="Faster (])">+</button></span>
+    <button id="bRestart" class="icon" title="Start the tour again from step 1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 9 9 9"/></svg></button>
+    <button id="bHelp" class="icon" title="Shortcuts and what is where (?)">?</button>
+    <button id="bSettings" class="icon" title="Voice &amp; display" aria-label="Voice and display settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  </div>
+  <div id="modesw" title="Review plays the tour. Export picks and orders what goes into a Markdown export (E)">
+    <button data-m="review" class="on">Review</button><button data-m="edit">Export</button>
+  </div>
+</header>
+
+<main>
+  <nav id="route" aria-label="Tour route"><div class="route-heading">Route<button id="closeRoute" type="button" title="Close route" aria-label="Close route">×</button></div><div id="routeContents"><div class="idle">No route yet</div></div></nav>
+  <div id="rail" title="The route: hover to open the list, click a number to go there"></div>
+  <div id="stage">
+    <div id="panes">
+      <div id="left">
+        <div class="cap">
+          <span id="dcap">Diagram</span><span class="why" id="dwhy"></span>
+          <span class="tools">
+            <button id="bFlip" title="Flip between the project overview and this stop's own diagram (O)">Overview</button>
+            <button id="zOut" title="Zoom out (-)">&minus;</button>
+            <span id="zlvl">100%</span>
+            <button id="zIn" title="Zoom in (+)">+</button>
+            <button id="zFit" title="Fit (0, or double-click)">Fit</button>
+          </span>
+        </div>
+        <div id="dgwrap"><div id="dgpan"></div>
+          <div class="idle" id="dgidle"><b>No diagram yet</b>It appears here when a stop draws one.</div>
+          <div id="pop"></div>
+        </div>
+      </div>
+      <div id="vsplit" title="Drag to resize"></div>
+      <div id="right">
+        <div class="cap"><span id="fcap">No file open</span><span class="why" id="fwhy"></span>
+          <span class="tools">
+            <button id="bRange" title="Scroll back to the lines this stop is about">Back to lines</button>
+          </span>
+        </div>
+        <div id="codewrap"><div class="idle" id="codeidle"><b>No file yet</b>The whole file appears here, scrolled to the stop.</div></div>
+      </div>
+    </div>
+    <div id="status"><div class="card">
+      <div class="spin big" id="stspin" style="margin:0 auto"></div>
+      <h2 id="sthead">Connecting to the tour</h2>
+      <p id="sttext"></p>
+      <div class="q" id="stq" style="display:none"></div>
+    </div></div>
+  </div>
+</main>
+
+<div id="linkbar"><span id="linktext"></span><span class="pin" id="linkpin"></span></div>
+<div id="hsplit" title="Drag to resize"></div>
+
+<div id="bottom">
+  <div id="note"><div class="idle">Narration appears here.</div></div>
+  <div id="controls">
+    <button id="bPrev" title="Previous step (Left arrow)">&#9664; Back</button>
+    <button id="bNext" title="Next step (Right arrow)">Next &#9654;</button>
+    <button id="bLive" class="go" title="Jump to the newest step (L)">Live</button>
+    <button id="bPlay" title="Pause or resume the voice (Space)">&#10073;&#10073; Pause</button>
+    <button id="bAudio" title="Say this step again from the start (R)">&#9654; Replay</button>
+    <span id="atime"></span>
+    <span id="voice"></span>
+    <div id="spacer"></div>
+    <span class="seg" id="layout">
+      <button data-l="split" title="Diagram and code side by side">Split</button>
+      <button data-l="map" title="Diagram only">Diagram</button>
+      <button data-l="code" title="Code only">Code</button>
+    </span>
+  </div>
+  <div id="askrow">
+    <div id="askfield"><input id="askin" placeholder="Ask a question about this step… (Enter sends; it reaches the agent with the step you are on)" autocomplete="off"><button id="bMic" type="button" aria-label="Speak your question" aria-pressed="false" title="Speak your question"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg></button></div>
+    <button id="bSend" class="go">Send</button>
+    <button id="previousQuestions" type="button" aria-haspopup="dialog">Previous questions</button>
+    <button id="bHold" class="ask" title="Ask the agent to stop here (H)">Hold on</button>
+  </div>
+  <div id="micStatus" role="status" aria-live="polite"></div>
+  <div id="sent"></div>
+  <div id="unmute"><b>The browser is holding the voice back.</b>
+    <button id="bUnmute" class="go">Click to start the voice</button>
+    <span>Chrome needs one click on the page before it will play sound.</span></div>
+</div>
+
+<div id="help"><div class="card">
+  <h3>What is where, and how to drive it</h3>
+  <table>
+    <tr><td><b>Route</b>, left</td><td>The numbers down the left edge are the steps; a dot under one is a question you asked there. Click a number to go there; hover the edge and the full list slides out over the page. Grey ones are still being written. The button at the top left pins the list open.</td></tr>
+    <tr><td><b>Diagram</b></td><td>The shape: who calls whom, where data goes. <b>Click a box</b> to ask for the code behind it or how it fits. With a project overview, each stop starts on the overview, zoomed to the box it lives in, then shows its own diagram; <b>Overview</b> / <b>This stop</b> over the pane, or <kbd>O</kbd>, flips between them.</td></tr>
+    <tr><td><b>Code</b></td><td>The whole file, scrolled to the stop. Orange lines are the ones under discussion; the bar in the gutter marks the stop's range. <b>Back to lines</b> scrolls back to it after you have scrolled away.</td></tr>
+    <tr><td><b>Splitters</b></td><td>Drag the bar between the panes, or the one above the narration. Split / Diagram / Code, bottom right, picks a layout. The route list opens over the panes, so it never resizes them.</td></tr>
+    <tr><td style="padding-top:12px">speaker</td><td style="padding-top:12px">Mute or unmute. Unmuted, every step speaks when it is shown and the tour moves on when the voice ends. The arrow beside it starts again from step 1.</td></tr>
+    <tr><td>gear</td><td>Settings: whether the overview zooms out and in between stops, or follows the browser's reduced-motion setting.</td></tr>
+    <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Back, and forward. On an answer, forward returns to the step you asked from.</td></tr>
+    <tr><td><kbd>Space</kbd> <kbd>R</kbd></td><td>Pause or resume (in Export, Space ticks); say it again</td></tr>
+    <tr><td><kbd>L</kbd> <kbd>M</kbd> <kbd>H</kbd></td><td>Newest step; mute; ask the agent to hold</td></tr>
+    <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Voice slower, faster (the <b>&minus; 1× +</b> control at the top; click 1× to reset)</td></tr>
+    <tr><td><b>Typing a question</b></td><td>Pins the step you are on: the tour waits until you send it or leave the box</td></tr>
+    <tr><td><b>Pause</b></td><td>Stays paused while you move between pages and read; Play speaks the page you are on and the tour runs again</td></tr>
+    <tr><td>wheel, drag</td><td>Zoom the diagram to the cursor, pan. <b>Fit</b>, <kbd>0</kbd> or a double-click shows the whole diagram. <kbd>+</kbd> <kbd>&minus;</kbd> also work</td></tr>
+    <tr><td><kbd>O</kbd></td><td>Flip the diagram pane between the project overview and the stop's own diagram</td></tr>
+    <tr><td><kbd>?</kbd> <kbd>Esc</kbd></td><td>This panel; close things</td></tr>
+    <tr><td style="padding-top:12px"><b>Review</b> / <b>Export</b>, top right</td><td style="padding-top:12px">Review plays the tour. Export turns the route into the list an export is made from: every stop and every answer, each answer under the stop you asked it at. Only <b>ticked</b> sections go into the export: <b>Tick all</b> then untick what you do not want, or <b>Untick all</b> and tick the ones you do. An unticked section stays where it is, dimmed; a new one arrives ticked. <b>Drag</b> to reorder. Questions still work, and their answers join the list. In Export the voice plays only when you press Play. <kbd>E</kbd> switches.</td></tr>
+    <tr><td><b>Export&hellip;</b></td><td>A Markdown record of the tour: the writing, every diagram as Mermaid, and only the highlighted lines of each stop's code. Download saves it from the browser and keeps a copy in ~/.local/share/cosight/exports.</td></tr>
+    <tr><td><kbd>Alt</kbd>+<kbd>&uarr;</kbd> <kbd>&darr;</kbd> <kbd>Space</kbd></td><td>In Export: move the section on screen up or down; tick or untick it (Space does not pause there; the Play button does)</td></tr>
+  </table>
+</div></div>
+
+<div id="settings"><div class="card">
+  <h3>Settings</h3>
+  <label class="speech-setting">Narration <select id="voiceEngine"><option value="moonshine">Moonshine · on-device browser voice</option><option value="legacy">Existing Kokoro server / system voice</option></select></label>
+  <label class="speech-setting">Moonshine voice <select id="moonshineVoice"><option value="kokoro_bf_emma">Emma · British female</option><option value="kokoro_af_heart">Heart · American female</option><option value="kokoro_bm_george">George · British male</option><option value="kokoro_am_adam">Adam · American male</option></select></label>
+  <label class="speech-setting">Dictation model <select id="micModel"><option value="TinyStreaming">Tiny · faster, smaller download</option><option value="SmallStreaming">Small · balanced</option><option value="MediumStreaming">Medium · higher accuracy, larger download</option></select></label>
+  <p class="note">Moonshine downloads voice and speech models on first use, then caches them in this browser. Audio is processed locally. Click the mic to start and stop; review the text before sending.</p>
+  <button id="bVoicePreview">Play this stop with the selected voice</button>
+
+  <div class="row"><b>Zoom between stops</b>
+    <span class="seg" id="motionsw"><button data-v="auto" title="Off when the browser asks for reduced motion">Follow the browser</button><button data-v="on">On</button><button data-v="off">Off</button></span></div>
+  <p class="note">Zooming the project overview out and in between stops. Off shows each stop's box without moving.</p>
+</div></div>
+
+<div id="exp"><div class="card">
+  <div class="top"><h3>Export to Markdown</h3><button id="xClose" class="icon" title="Close (Esc)">&times;</button></div>
+  <label>Title <input id="xTitle" autocomplete="off"></label>
+  <div id="xStats"></div>
+  <pre id="xPrev"></pre>
+  <div class="row">
+    <button id="xDown" class="go" title="Save the .md from the browser, and a copy beside the tour">Download .md</button>
+    <button id="xCopy" title="Copy the Markdown to the clipboard">Copy</button>
+    <span id="xMsg"></span>
+  </div>
+</div></div>
+
+<div id="library" role="dialog" aria-label="Tours and instructions" hidden>
+  <div class="card">
+    <div class="settings-toolbar"><span>Settings</span><div><button id="libSave">Save</button><button id="libClose" class="go">Save &amp; close</button></div></div><div class="setup-brand"><img src="icons/atlas.svg" width="54" height="54" alt=""><div><h3>Settings</h3><p>Agent setup is shared across projects. Instructions stay with this project.</p></div></div>
+    <p id="libProject"></p>
+    <div hidden><label>Project directory <input id="libProjectPath" placeholder="/absolute/path/to/project"></label>
+    <button id="libBrowseProject" hidden>Choose folder…</button> <button id="libOpenProject">Open project</button></div>
+    <section class="settings-section"><div class="settings-section-title"><h3>Agent</h3><span>All projects</span></div>
+    <label>Use for questions and tours <select id="libProvider"></select></label>
+    <div class="provider-connect"><p id="libLoginHelp"></p><button id="libLogin" type="button">Connect</button></div>
+    <p id="libAgentStatus" role="status"></p><button id="libStopAgent" hidden>Stop agent</button>
+    <details class="agent-advanced"><summary>Advanced &amp; troubleshooting</summary>
+      <label>Executable override <input id="libAgentCommand" placeholder="Use the installed agent"></label>
+      <label>Model override <input id="libModel" placeholder="Use agent default"></label>
+      <label>Additional arguments (JSON array) <textarea id="libAgentArgs" rows="2"></textarea></label>
+      <p>Custom agents run directly without a shell. Supported placeholders: {prompt}, {project}, {mcpConfig}, {runDir}, {model}.</p>
+      <button id="libExternal">Connect an external agent…</button><button id="libDiagnostics">Copy diagnostic information</button>
+      <button id="libSetupAgy" hidden>Finish agent setup</button><p id="libSetupHelp" hidden>Review the permission changes before applying them. Existing rules and settings are preserved.</p>
+      <details><summary>External agent connection</summary><p>Connect another agent to this project's overview, instructions and tours.</p><pre id="libMcpConfig" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><button id="libCopyMcp">Copy connection configuration</button></details>
+    </details>
+    <div hidden><input type="checkbox" id="libSerena"><input id="libSerenaCommand"><textarea id="libSerenaArgs"></textarea></div></section>
+    <section class="settings-section"><div class="settings-section-title"><h3>Tour instructions</h3><span>This project</span></div>
+    <label>Apply a preset <select id="libPresets"><option value="">Choose a preset</option></select></label>
+    <input type="hidden" id="libName">
+    <button id="libPresetSave">Save as preset…</button><div id="libPresetEditor" hidden><label>Preset name <input id="libPresetDraftName" maxlength="200"></label><button id="libPresetCancel" type="button">Cancel</button><button id="libPresetConfirm" type="button">Save preset</button></div><label>Instructions for this project <textarea id="libInstructions" rows="6" placeholder="Explain the main modules, trace one request, and highlight recent changes."></textarea></label>
+    <p>Presets can be reused in other projects. Applying or editing one here only changes this project's saved copy.</p>
+    </section><button id="libRun">Save &amp; request tour</button>
+    <p id="libMessage" role="status"></p>
+    <div hidden><h3>Previous tours</h3><label><input type="checkbox" id="libAll"> Show all projects</label><div id="libTours"></div></div>
+  </div>
+</div>
+<style>
+#library:not([hidden]){display:flex;position:fixed;inset:0;z-index:15;background:#080a0ee8;align-items:center;justify-content:center}
+#library .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:24px;width:min(850px,95vw);max-height:90vh;overflow:auto}
+#library label{display:block;margin:12px 0} #library input:not([type=checkbox]),#library textarea,#library select{display:block;width:100%;padding:8px;background:var(--bg);color:var(--ink);border:1px solid var(--line);box-sizing:border-box}
+#libTours button{display:block;text-align:left;width:100%;margin:8px 0;padding:10px;white-space:normal} #libProject{overflow-wrap:anywhere;color:var(--accent)}
+</style>
+<audio id="au"></audio>
+
+<!-- Vendored locally (assets/vendor/mermaid.min.js, pinned 12.1.0 via `npm pack mermaid@12.1.0`).
+     Never a CDN: this page's whole point is that nothing about the code being explained
+     leaves this machine, and that holds for the libraries it loads too. -->
+<script src="vendor/mermaid.min.js"></script>
+<script src="vendor/markdown-it.js"></script>
+<!-- Export mode's list order and the Markdown export, kept apart so tests/export.test.ts can run it. -->
+<script src="export.js"></script>
+<!-- The project overview's moves and cache key, kept apart so tests/overview.test.ts can run it. -->
+<script src="overview.js"></script>
+<script>
+/* ---------- GapStyle highlighting ----------
+   Colours follow GapStyle (github.com/gaplo917/GapStyle, MIT): one colour per kind of
+   construct, the same in every language, so a reader new to a language can still find
+   its keywords, calls, types and constants by colour alone. A lexical pass cannot see
+   real semantics, so each class is a heuristic named after the construct it stands for:
+     .k  keyword (bold)      .f  method/function    .t  class/type      .n  number
+     .s  string              .si interpolation      .rx regex           .cn constant/predefined
+     .m  member field        .v  local declaration  .d  decorator       .c  comment
+     .dc doc comment         .dt doc @tag           .dp doc {@link ...}
+   Block comments and template strings carry across lines through `st`. */
+var KWSET={};
+('abstract as async await boolean break case catch class const continue declare def default delete do elif else enum '+
+ 'export extends final finally for from fn func function get if impl implements import in instanceof interface is '+
+ 'let match mod module mut namespace new of override package private protected pub public readonly record return '+
+ 'satisfies sealed self set static struct super switch this throw throws trait try type typeof use val var void when '+
+ 'where while with yield').split(' ').forEach(function(w){KWSET[w]=1;});
+var LITSET={}; 'null None True False true false nil undefined NaN Infinity'.split(' ').forEach(function(w){LITSET[w]=1;});
+var DECL={const:1,let:1,var:1,val:1};
+var REGEX_BEFORE=/(^|[(,=:\[!&|?{};]|\breturn|\btypeof)\s*$/;
+
+function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function span(c,t){return '<span class="'+c+'">'+esc(t)+'</span>';}
+
+// `--` is a comment only where it is not also an operator, and `#` only where it is
+// not a private field: JS, TS and Java keep `//` alone.
+function commentStarts(lang){
+  if(lang && /^(sql|plsql|tsql|pgsql|hql|lua|hs|haskell|ada)$/i.test(lang)) return ['--'];
+  if(lang && /^(py|python|sh|bash|zsh|yaml|yml|toml|rb|ruby|r|perl|ps1|powershell|make|dockerfile|conf|ini)$/i.test(lang)) return ['#'];
+  return ['//'];
+}
+
+// The inside of a doc comment: @tags and {@link ...} picked out, the rest doc green.
+function docText(t){
+  var out='', re=/(\{@\w+[^}]*\})|(@\w+)/g, last=0, m;
+  while((m=re.exec(t))){ out+=span('dc',t.slice(last,m.index))+span(m[1]?'dp':'dt',m[0]); last=re.lastIndex; }
+  return out+span('dc',t.slice(last));
+}
+
+// One line, left to right; each token escaped as it is emitted. `st` carries what is
+// still open at the end of the line: a block comment ('c' or 'dc') or a template string.
+function hl(line,lang,st){
+  var cmts=commentStarts(lang), out='', i=0, n=line.length, prevWord='', prevSig='';
+  while(i<n){
+    if(st.block){
+      var e=line.indexOf('*/',i), stop=e<0?n:e+2, part=line.slice(i,stop);
+      out+= st.block==='dc'?docText(part):span('c',part);
+      if(e>=0) st.block=null; i=stop; continue;
+    }
+    if(st.tmpl){
+      var j=i;
+      while(j<n && line.charAt(j)!=='`' && line.substr(j,2)!=='${'){ if(line.charAt(j)==='\\') j++; j++; }
+      out+=span('s',line.slice(i,j));
+      if(j>=n){ i=n; break; }
+      if(line.charAt(j)==='`'){ out+=span('s','`'); st.tmpl=false; i=j+1; continue; }
+      var close=line.indexOf('}',j); if(close<0) close=n-1;
+      out+=span('si','${')+hl(line.slice(j+2,close),lang,{block:null,tmpl:false})+span('si','}');
+      i=close+1; continue;
+    }
+    var rest=line.slice(i), ch=line.charAt(i);
+    if(rest.substr(0,3)==='/**' && rest.substr(0,4)!=='/**/'){ st.block='dc'; continue; }
+    if(rest.substr(0,2)==='/*'){ st.block='c'; continue; }
+    var isC=false;
+    for(var c=0;c<cmts.length;c++) if(rest.substr(0,cmts[c].length)===cmts[c]){ out+=span('c',rest); i=n; isC=true; break; }
+    if(isC) break;
+    if(ch==='`'){ out+=span('s','`'); st.tmpl=true; i++; continue; }
+    if(ch==='"'||ch==="'"){
+      var k=i+1;
+      while(k<n){ if(line.charAt(k)==='\\'){ k+=2; continue; } if(line.charAt(k)===ch){ if(line.charAt(k+1)===ch){ k+=2; continue; } break; } k++; }
+      var end=Math.min(k+1,n); out+=span('s',line.slice(i,end)); i=end; prevSig='s'; continue;
+    }
+    if(ch==='/' && REGEX_BEFORE.test(line.slice(0,i))){
+      var r=/^\/(?:\\.|\[(?:\\.|[^\]])*\]|[^\/\\\n])+\/[a-z]*/.exec(rest);
+      if(r){ out+=span('rx',r[0]); i+=r[0].length; prevSig='rx'; continue; }
+    }
+    var num=/^(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?)n?/.exec(rest);
+    if(num && !/[A-Za-z0-9_$]/.test(line.charAt(i-1)||'')){ out+=span('n',num[0]); i+=num[0].length; prevSig='n'; continue; }
+    if(ch==='@'){
+      var dec=/^@[A-Za-z_][\w.]*/.exec(rest);
+      if(dec){ out+=span('d',dec[0]); i+=dec[0].length; continue; }
+    }
+    var m=/^[A-Za-z_$][A-Za-z0-9_$]*/.exec(rest);
+    if(m){
+      var w=m[0], after=line.slice(i+w.length), before=line.slice(0,i), cls='';
+      if(KWSET[w]) cls='k';
+      else if(LITSET[w]) cls='cn';
+      else if(/^\s*(?:<[^>()]*>)?\s*\(/.test(after) || prevWord==='function' || prevWord==='def' || prevWord==='fun' || prevWord==='fn') cls='f';
+      else if(/\.\s*$/.test(before)) cls='m';
+      else if(/^[A-Z][A-Z0-9_]+$/.test(w) && w.length>1) cls='cn';
+      else if(/^[A-Z]/.test(w)) cls='t';
+      else if(DECL[prevWord]) cls='v';
+      out+= cls ? span(cls,w) : esc(w);
+      prevWord=w; i+=w.length; continue;
+    }
+    if(!/\s/.test(ch)) prevWord= (ch===','&&DECL[prevWord])?prevWord:'';
+    out+=esc(ch); i++;
+  }
+  return out;
+}
+function mdish(t){return esc(t).replace(/`([^`]+)`/g,'<code>$1</code>')
+  .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+  .split(/\n{2,}/).map(function(p){return '<p>'+p.replace(/\n/g,'<br>')+'</p>';}).join('');}
+
+var $=function(id){return document.getElementById(id);};
+var ICON_ON='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>', ICON_OFF='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+function store(k,v){ try{ if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+function load(k,d){ try{ var v=localStorage.getItem(k); return v===null?d:JSON.parse(v); }catch(e){ return d; } }
+
+/* ---------- the document and where we are in it ----------
+   `doc` is the whole tour as the server serves it. `cur` names the entry on screen:
+   {type:'stop', n} or {type:'aside', id}. Everything else is derived from those two,
+   so a reload that gets the document back gets the page back. */
+var liveDoc=null, reviewingArchive=false;
+var doc=null, cur=null, shownId=null, booted=false, lastTourId=null;
+var autoplay=false;            // move on when the voice ends; off after Pause, Back, Hold
+var heldNext=0;               // the step the voice finished on wanted to move to, while the question box is in use
+var paused=true;             // Pause pressed: no page speaks until Play, however many you look at
+var resumeAt=null;            // after a self-reload: the entry whose voice was mid-sentence, and where
+(function(){
+  var r=null; try{ r=JSON.parse(sessionStorage.getItem('cosight:reload')||'null'); sessionStorage.removeItem('cosight:reload'); }catch(e){}
+  if(!r||!(Date.now()-r.at<120000)) return;
+  paused=true; autoplay=false;
+  if(r.id&&r.t>0.5) resumeAt={id:r.id,t:r.t};
+})();
+var waitingFor=0;             // the route step we will advance to once it lands
+var pendingAsks=[];           // questions sent from here, until their answer arrives
+var seenStops={}, seenAsides={};
+var muted=!!load('cosight:muted',false);
+var rate=clampRate(load('cosight:rate',1));
+function clampRate(r){ r=Number(r); if(!isFinite(r)) return 1; return Math.round(Math.min(2,Math.max(0.6,r))*20)/20; }
+function setRate(r,say){
+  rate=clampRate(r); store('cosight:rate',rate);
+  try{ au.playbackRate=rate; au.preservesPitch=true; }catch(e){}
+  // A browser utterance cannot change speed mid-sentence; the next one takes the new rate.
+  drawHeader();
+  if(say!==false) flash('Voice at '+rate.toFixed(2).replace(/0$/,'')+'×.');
+}
+var layoutChoice=null;        // the person's Split/Diagram/Code pick; sticks for the tour
+var EX=window.CoSightExport; // export.js: the export list's order and the Markdown
+var OV=window.CoSightOverview; // overview.js: the project overview's moves and cache key
+var editing=false;            // Export mode (formerly Edit): the route list is the export list, and the voice waits for Play
+var motion=load('cosight:motion','auto');   // Zoom between stops: 'auto' follows the browser, 'on', 'off'
+function motionOn(){ return OV.motionOn(motion, !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)); }
+function overviewOf(){ return doc&&doc.overview&&doc.overview.src?doc.overview:null; }
+
+function stopByN(n){ if(!doc) return null; for(var i=0;i<doc.stops.length;i++) if(doc.stops[i].n===n) return doc.stops[i]; return null; }
+function asideById(id){ if(!doc) return null; for(var i=0;i<doc.asides.length;i++) if(doc.asides[i].id===id) return doc.asides[i]; return null; }
+function entryOf(ref){ return !ref?null : ref.type==='stop'?stopByN(ref.n):asideById(ref.id); }
+function curEntry(){ return entryOf(cur); }
+function planLen(){ return doc?Math.max((doc.plan||[]).length, doc.stops.reduce(function(m,s){return Math.max(m,s.n);},0)):0; }
+function deliveredNs(){ return doc?doc.stops.map(function(s){return s.n;}).sort(function(a,b){return a-b;}):[]; }
+function nextDelivered(n){ var ns=deliveredNs(); for(var i=0;i<ns.length;i++) if(ns[i]>n) return ns[i]; return 0; }
+function prevDelivered(n){ var ns=deliveredNs(); for(var i=ns.length-1;i>=0;i--) if(ns[i]<n) return ns[i]; return 0; }
+function firstN(){ var ns=deliveredNs(); return ns.length?ns[0]:0; }
+function lastN(){ var ns=deliveredNs(); return ns.length?ns[ns.length-1]:0; }
+function curN(){ var e=curEntry(); return !e?0 : cur.type==='stop'?e.n:(e.from||0); }
+function liveRef(){
+  // The newest thing that landed. The document carries no arrival clock across the two
+  // lists, so an answer counts as newest only when it was asked at the newest stop.
+  if(!doc) return null;
+  var a=doc.asides[doc.asides.length-1], n=lastN();
+  if(a && (!n || (a.from||0)>=n)) return {type:'aside',id:a.id};
+  return n?{type:'stop',n:n}:null;
+}
+function isLive(ref){ var l=liveRef(); return !!(ref&&l&&ref.type===l.type&&ref.n===l.n&&ref.id===l.id); }
+// The diagram an entry shows: its own, or the newest earlier route stop's.
+function diagramFor(e){
+  if(!e) return null;
+  if(e.svg) return {src:e.svg, own:true, from:e};
+  var n=e.ask?(e.from||0):e.n, best=null;
+  doc.stops.forEach(function(s){ if(s.svg && s.n<=n && (!best||s.n>best.n)) best=s; });
+  if(!best && e.ask) doc.stops.forEach(function(s){ if(s.svg && (!best||s.n>best.n)) best=s; });
+  return best?{src:best.svg, own:false, from:best}:null;
+}
+
+/* ---------- connection ---------- */
+var es=null, misses=0, pollTimer=null;
+function connect(){
+  try{ es=new EventSource('events'); }catch(e){ es=null; return; }
+  es.addEventListener('tour',function(ev){ try{ apply(JSON.parse(ev.data)); }catch(e){ console.error('tour event',e); } $('dot').classList.remove('stale'); misses=0; });
+  es.onerror=function(){ $('dot').classList.add('stale'); };
+}
+connect();
+// Polling is the fallback only while the stream is down, never a second channel.
+setInterval(function(){
+  if(es && es.readyState===1) return;
+  fetch('tour?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;})
+    .then(function(d){ if(d){ apply(d); $('dot').classList.remove('stale'); } })
+    .catch(function(){ $('dot').classList.add('stale'); });
+},1000);
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState!=='visible') return;
+  fetch('tour?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){ if(d) apply(d); }).catch(function(){});
+});
+
+// SELF-RELOAD. The page asks the server what page it is serving; when that stops
+// matching what this tab loaded, this tab is out of date and reloads once.
+var myPage=null, reloading=false;
+function checkPage(){
+  fetch('whoami?t='+Date.now(),{cache:'no-store'})
+    .then(function(r){ return r.ok?r.json():null; })
+    .then(function(w){
+      if(!w||!w.page||reloading) return;
+      if(myPage===null){ myPage=w.page; return; }
+      if(w.page!==myPage){
+        reloading=true;
+        // The page itself changed underneath this tab. Reloading must not start the tour again:
+        // it comes back paused if it was paused, and the voice resumes where it had got to.
+        try{ sessionStorage.setItem('cosight:reload',JSON.stringify({paused:paused,id:speaking,t:au.currentTime||0,at:Date.now()})); }catch(e){}
+        location.reload();
+      }
+    })
+    .catch(function(){});
+}
+setInterval(checkPage,5000); checkPage();
+
+function apply(d,readOnly){
+  if(!d) return;
+  liveDoc=d;
+  if(reviewingArchive) return;
+  if(d.storageError) flash(d.storageError,false);
+  d.stops=(d.stops||[]).slice().sort(function(a,b){return a.n-b.n;});
+  d.asides=d.asides||[]; d.plan=d.plan||[]; d.tts=d.tts||{state:'ready'};
+  var prev=doc; doc=d;
+  window.dispatchEvent(new CustomEvent('cosight:document',{detail:d}));
+
+  if(d.tourId!==lastTourId){
+    // A new tour: nothing from the old one carries over except the mute switch.
+    lastTourId=d.tourId; cur=null; shownId=null; waitingFor=0; pendingAsks=[]; seenStops={}; seenAsides={};
+    layoutChoice=load('cosight:layout:'+d.tourId,null);
+    stopSpeech(); diagramCache={}; fileCache={}; resetOverview();
+    booted=true; autoplay=false; paused=true;
+    var pos=load('cosight:pos:'+d.tourId,null);
+    if(pos && entryOf(pos)){ markAllSeen(); show(pos,true); }
+  }
+  // The terminal's /tour quiet | voice, applied once per change.
+  if(d.mute && typeof d.mute.v==='number' && d.mute.v!==load('cosight:muteV',-1)){
+    store('cosight:muteV',d.mute.v);
+    if(prev!==null || d.mute.v>0) setMuted(!!d.mute.on,false);
+  }
+  if(d.speed && typeof d.speed.v==='number' && d.speed.v!==load('cosight:speedV',-1)){
+    store('cosight:speedV',d.speed.v);
+    if(prev!==null || d.speed.v>0) setRate(d.speed.rate,false);
+  }
+
+  var newAsides=d.asides.filter(function(a){return !seenAsides[a.id];});
+  var newStops=d.stops.filter(function(s){return !seenStops[s.id];});
+  // A question answered: drop it from the waiting list, by its words.
+  pendingAsks=pendingAsks.filter(function(p){ return !d.asides.some(function(a){return a.ask===p.text;}); });
+
+  if(newAsides.length && cur){
+    // The person asked; the answer takes the stage the moment it lands.
+    markAllSeen(); show({type:'aside',id:newAsides[newAsides.length-1].id},true);
+  } else if(!cur && d.stops.length){
+    markAllSeen(); show({type:'stop',n:firstN()},true);
+  } else {
+    markAllSeen();
+    if(cur){
+      var e=curEntry();
+      if(!e){ show({type:'stop',n:firstN()},true); }
+      else if(e.id!==shownId){ show(cur,false); }            // the same step shown again by Claude: redraw, no restart
+      else if(waitingFor && stopByN(waitingFor) && autoplay){ var w=waitingFor; waitingFor=0; moveOn(w); }
+      else if(speaking && speaking===e.id && !speakingStarted && !voiceBlocked && !paused && e.audio && (!window.CoSightSpeech||CoSightSpeech.engine()!=='moonshine')){ speak(e); }   // the voice we were waiting for arrived
+    }
+  }
+  drawHeader(); drawRoute(); drawButtons(); drawStatus(); paintVoiceNote();window.CoSightSpeech?.prefetchTour();
+}
+function markAllSeen(){ doc.stops.forEach(function(s){seenStops[s.id]=1;}); doc.asides.forEach(function(a){seenAsides[a.id]=1;}); }
+
+/* ---------- drawing ---------- */
+function phaseText(){
+  if(!doc) return {t:'connecting',c:'busy',spin:true};
+  var p=doc.phase, s=doc.status;
+  if(p==='reading') return {t:s||'The agent is reading the code',c:'busy',spin:true};
+  if(p==='writing') return {t:s||'Writing the next stop',c:'busy',spin:true};
+  if(p==='answering') return {t:s||'The agent is answering',c:'busy',spin:true};
+  // Nothing in progress: the pill says nothing, unless Claude stopped with stops unwritten,
+  // which the greyed route alone would leave looking like they are still coming.
+  if(p==='done') return s?{t:s,c:'done',spin:false}:{hide:true};
+  if(p==='off') return {t:'Tour off',c:'off',spin:false};
+  return {hide:true};
+}
+function drawHeader(){
+  var ph=phaseText();
+  $('pill').className=ph.hide?'hide':ph.c; $('pilltext').textContent=ph.t||''; $('pillspin').style.display=ph.spin?'':'none';
+  $('question').textContent=doc&&doc.question?('·  '+doc.question):'';
+  var e=curEntry(), total=planLen();
+  $('count').textContent=!e?'':(e.ask?('answer, asked at step '+(e.from||'?')+(total?' of '+total:'')):('step '+e.n+' of '+total));
+  $('bar').firstElementChild.style.width=(total?Math.round((curN()/total)*100):0)+'%';
+  $('bMute').innerHTML=muted?ICON_OFF:ICON_ON;
+  $('bMute').className='icon'+(muted?' off':'');
+  $('bMute').title=muted?'Voice is off. Click to unmute (M)':'Voice is on. Click to mute (M)';
+  $('bRestart').disabled=!doc||!doc.stops.length;
+  $('bRate').textContent=rate.toFixed(2).replace(/0$/,'')+'×';
+  $('rate').className=rate===1?'':'changed';
+  $('bSlower').disabled=rate<=0.6; $('bFaster').disabled=rate>=2;
+}
+function drawStatus(){
+  var on=!curEntry();
+  $('status').className=on?'on':'';
+  if(!on) return;
+  var ph=phaseText();
+  $('stspin').style.display=ph.spin?'':'none';
+  if(!doc){ $('sthead').textContent='Connecting to the tour'; $('sttext').textContent='The tour server is not answering yet.'; }
+  else if(doc.phase==='reading'){ $('sthead').textContent='The agent is reading the code'; $('sttext').textContent=(doc.status||'Working out the route.')+' The first stop appears here as soon as it is written.'; }
+  else if(doc.phase==='writing'){ $('sthead').textContent=doc.status||'Writing the first stop'; $('sttext').textContent=doc.plan.length?('The route has '+doc.plan.length+' stops. Stop 1 appears here the moment it lands; the rest arrive while it plays.'):'The route is being planned.'; }
+  else if(doc.phase==='answering'){ $('sthead').textContent='The agent is answering'; $('sttext').textContent=doc.status||'The answer lands here.'; }
+  else if(doc.phase==='idle'){ $('sthead').textContent='Waiting for a question'; $('sttext').textContent='Ask in the terminal, or with /tour <question>.'; }
+  else if(doc.phase==='done'){ $('sthead').textContent='Nothing was shown'; $('sttext').textContent=doc.status||'The agent finished without a stop. Ask again in the terminal or below.'; }
+  else if(doc.phase==='off'){ $('sthead').textContent='CoSight is off'; $('sttext').textContent='Switch it on with /tour on in the terminal.'; }
+  else { $('sthead').textContent='Waiting for a question'; $('sttext').textContent='Ask in the terminal: /tour <question, file or topic>. The tour plays here.'; }
+  $('stq').style.display=doc&&doc.question?'':'none'; $('stq').textContent=doc&&doc.question?doc.question:'';
+}
+// The first planned stop not yet delivered, while Claude is writing; 0 otherwise.
+function writingNOf(){
+  if(!doc||doc.phase!=='writing') return 0;
+  var ns=deliveredNs(), total=planLen();
+  for(var k=1;k<=total;k++) if(ns.indexOf(k)<0) return k;
+  return 0;
+}
+// A click on a stop or an answer, in the full list or on the rail (same data-n / data-a).
+function pickRoute(d){
+  if(d.dataset.a){ autoplay=false; return show({type:'aside',id:d.dataset.a},true); }
+  if(d.dataset.n==null) return;
+  var n=parseInt(d.dataset.n,10);
+  if(!stopByN(n)){ flash('Step '+n+' has not arrived yet.',false); return; }
+  if(n<curN()) autoplay=false;
+  show({type:'stop',n:n},true);
+}
+// The rail: one number per planned stop, a dot under it per answer asked there.
+function drawRail(){
+  var el=$('rail');
+  if(!doc){ el.innerHTML=''; return; }
+  var total=planLen(), writingN=writingNOf(), curAside=cur&&cur.type==='aside'?cur.id:null, html='', titles={};
+  doc.plan.forEach(function(p){titles[p.n]=p.title;});
+  function dots(n){
+    doc.asides.forEach(function(a){ if((a.from||0)===n) html+='<div class="rd'+(curAside===a.id?' cur':'')+'" data-a="'+escAttr(a.id)+'" title="'+escAttr('You asked: '+a.ask)+'"></div>'; });
+    pendingAsks.forEach(function(p){ if((p.step||0)===n) html+='<div class="rd waiting" title="'+escAttr(p.text+' (waiting for the answer)')+'"></div>'; });
+  }
+  for(var n=1;n<=total;n++){
+    var st=stopByN(n), cls='rl'+(st?' seen':' pending')+(n===writingN?' writing':'')+(cur&&cur.type==='stop'&&cur.n===n?' cur':'');
+    html+='<div class="'+cls+'" data-n="'+n+'" title="'+escAttr(n+'. '+((st&&st.title)||titles[n]||('Stop '+n))+(st?'':' (not written yet)'))+'">'+n+'</div>';
+    dots(n);
+  }
+  dots(0);
+  el.innerHTML=html;
+  Array.prototype.forEach.call(el.querySelectorAll('.rl,.rd'),function(d){
+    // A click on the rail goes there; it does not also open the list it was hovering towards.
+    d.onclick=function(){ clearTimeout(routeOpenT); pickRoute(d); };
+  });
+  var c=el.querySelector('.cur'); if(c) c.scrollIntoView({block:'nearest'});
+}
+function drawRoute(){
+  drawRail();
+  if(dragKey){ routeDirty=true; return; }      // a redraw mid-drag would drop the section being dragged
+  if(editing) return drawEdit();
+  var el=$('routeContents');
+  if(!doc||!doc.plan.length&&!doc.stops.length){ el.innerHTML='<div class="idle">'+(doc&&doc.phase==='reading'?'<span class="spin"></span><br>Planning the route':'No route yet')+'</div>'; return; }
+  var total=planLen(), titles={}; doc.plan.forEach(function(p){titles[p.n]=p.title;});
+  var writingN=writingNOf();
+  var html='', cN=curN(), curAside=cur&&cur.type==='aside'?cur.id:null;
+  for(var n=1;n<=total;n++){
+    var st=stopByN(n), delivered=!!st, cls='rstep';
+    if(!delivered) cls+=' pending'+(n===writingN?' writing':'');
+    if(cur&&cur.type==='stop'&&cur.n===n) cls+=' cur';
+    if(delivered&&n<cN) cls+=' done';
+    if(delivered) cls+=' seen';
+    var sub=!delivered?(n===writingN?'<span class="sub"><span class="spin" style="width:9px;height:9px;border-width:1.5px"></span> being written</span>':'<span class="sub">'+(doc.phase==='writing'?'on its way':'not written')+'</span>'):'';
+    html+='<div class="'+cls+'" data-n="'+n+'"><span class="rn">'+n+'</span><span class="rt">'+esc((st&&st.title)||titles[n]||('Stop '+n))+sub+'</span></div>';
+    doc.asides.forEach(function(a){
+      if((a.from||0)!==n) return;
+      html+='<div class="rstep aside'+(curAside===a.id?' cur':'')+'" data-a="'+esc(a.id)+'" title="'+esc(a.ask)+'"><span class="rn">&#8627;</span><span class="rt">'+esc(a.title||a.ask)+'</span></div>';
+    });
+    pendingAsks.forEach(function(p){
+      if(p.step!==n) return;
+      html+='<div class="rstep aside waiting" title="'+esc(p.text)+'"><span class="rn"><span class="spin" style="width:9px;height:9px;border-width:1.5px"></span></span><span class="rt">'+esc(p.text)+'<span class="sub">waiting for the answer…</span></span></div>';
+    });
+  }
+  // Answers and questions with no step (asked before the first stop).
+  doc.asides.concat(pendingAsks.map(function(p){return {pending:p};})).forEach(function(x){
+    if(x.pending){ if(x.pending.step) return; html+='<div class="rstep aside waiting" style="padding-left:14px"><span class="rn"><span class="spin" style="width:9px;height:9px;border-width:1.5px"></span></span><span class="rt">'+esc(x.pending.text)+'<span class="sub">waiting for the answer…</span></span></div>'; return; }
+    if(x.from) return;
+    html+='<div class="rstep aside'+(curAside===x.id?' cur':'')+'" style="padding-left:14px" data-a="'+esc(x.id)+'"><span class="rn">&#8627;</span><span class="rt">'+esc(x.title||x.ask)+'</span></div>';
+  });
+  el.innerHTML=html;
+  Array.prototype.forEach.call(el.querySelectorAll('.rstep'),function(d){ d.onclick=function(){ pickRoute(d); }; });
+  var c=el.querySelector('.rstep.cur'); if(c) c.scrollIntoView({block:'nearest'});
+}
+function drawButtons(){
+  var e=curEntry(), nb=$('bNext'), pb=$('bPrev');
+  if(!e){ nb.disabled=pb.disabled=true; nb.innerHTML='Next &#9654;'; $('bLive').disabled=true; $('bAudio').disabled=true; $('bPlay').disabled=true; $('bRange').disabled=true; return; }
+  pb.title='Previous step (Left arrow)';
+  if(editing){
+    // In Export mode, Next and Back walk the list as it stands, ticked or not.
+    var seq=editSeq(), at=seq.indexOf(EX.keyOf(e));
+    nb.disabled=at<0||at>=seq.length-1; nb.innerHTML='Next &#9654;'; nb.title='The next section in the list (Right arrow)';
+    pb.disabled=at<=0; pb.title='The section above it in the list (Left arrow)';
+  } else if(e.ask){
+    var back=stopByN(e.from);
+    nb.disabled=!back; nb.innerHTML='Back to step '+esc(e.from||'?')+' &#9654;'; nb.title='Return to the step you asked from (Right arrow)';
+    pb.disabled=!back;
+  } else {
+    var nx=nextDelivered(e.n), total=planLen();
+    if(nx){ nb.disabled=false; nb.innerHTML='Next &#9654;'; nb.title='Step '+nx+' (Right arrow)'; }
+    else if(e.n<total){ nb.disabled=true; nb.innerHTML='Step '+(e.n+1)+' on its way…'; nb.title='The agent is still writing it'; }
+    else { nb.disabled=true; nb.innerHTML='Last step'; nb.title='That was the last planned step'; }
+    pb.disabled=!prevDelivered(e.n);
+  }
+  $('bLive').disabled=!liveRef()||isLive(cur);
+  $('bAudio').disabled=!e.say; $('bPlay').disabled=!e.say; $('bRange').disabled=!e.fileUrl;
+  $('bRange').textContent='Back to '+(e.start===e.end?'line '+e.start:'lines '+e.start+'–'+e.end);
+  $('bRange').title='Scroll back to the lines this stop is about';
+  paintAudio();
+}
+
+/* ---------- show one entry ---------- */
+function show(ref,play){
+  var e=entryOf(ref); if(!e) return;
+  cur=ref; shownId=e.id; waitingFor=0; heldNext=0; pinned=null; hidePop();
+  if(doc.tourId) store('cosight:pos:'+doc.tourId,ref);
+  var dg=diagramFor(e);
+  setLayout(e.document&&typeof e.codeRelevant==='boolean'?(e.codeRelevant?'split':'map'):(layoutChoice||e.mode||(dg||overviewOf()?'split':'code')),false);
+
+  $('title').textContent=e.title||'CoSight';
+  paintDiagram(e,dg);
+  paintCode(e);
+
+  var n=$('note');
+  n.innerHTML=(e.title?'<h2>'+esc(e.title)+'</h2>':'')+(e.ask?'<div class="ask">You asked: '+esc(e.ask)+'</div>':'')
+    +'<div class="say">'+mdish(e.say||'')+'</div>'+(e.note?'<div class="more">'+mdish(e.note)+'</div>':'');
+  n.scrollTop=0;
+
+  clearBrush();
+  drawHeader(); drawRoute(); drawButtons(); drawStatus();
+  stopSpeech();
+  // Paused is a mode, not a moment: moving between pages while paused stays silent, and the
+  // audio Pause stopped is kept only while its own page is on screen.
+  if(paused){ if(speaking!==e.id) stopSpeech(); }
+  else if(play&&!editing) speak(e);
+  paintVoiceNote();
+}
+
+/* ---------- layout ---------- */
+function setLayout(l,chosen){
+  if(['split','stack','map','code'].indexOf(l)<0) l='split';
+  document.body.classList.remove('L-split','L-stack','L-map','L-code'); document.body.classList.add('L-'+l);
+  Array.prototype.forEach.call($('layout').querySelectorAll('button'),function(b){ b.className=b.dataset.l===l?'on':''; });
+  if(chosen){ layoutChoice=l; if(doc&&doc.tourId) store('cosight:layout:'+doc.tourId,l); }
+  // Refit once the panes have settled, but only while fitted: a zoom to an overview box must stay.
+  if(pan.querySelector('svg')) setTimeout(function(){ if(fitted) fit(); },50);
+}
+Array.prototype.forEach.call($('layout').querySelectorAll('button'),function(b){ b.onclick=function(){ setLayout(b.dataset.l,true); }; });
+/* The route list is a slide-out: closed, only the rail of stop numbers
+   shows. Hovering the rail opens the list over the panes for as long as the pointer stays on
+   it; the button at the top left pins it open, remembered, closed by default (a new key, so the
+   old always-open 'cosight:route' does not carry over). Export pins it while Export is on,
+   since the list is where Export is worked, and puts the pin back as it was on leaving. */
+var routePinned=!!load('cosight:routepin',false), routeHover=false, routeBeforeExport=null, routeOpenT=null, routeCloseT=null;
+var ROUTE_OPEN_MS=250, ROUTE_CLOSE_MS=300;
+function drawRouteState(){
+  var open=routePinned||routeHover, was=document.body.classList.contains('routeopen');
+  document.body.classList.toggle('routeopen',open);
+  var toggle=$('bRoute');toggle.classList.toggle('on',open);toggle.title=open?'Close route':'Open route';
+  toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded',String(open));
+  if(open&&!was){ var c=$('route').querySelector('.rstep.cur,.eitem.cur'); if(c) c.scrollIntoView({block:'nearest'}); }
+}
+// The pin as the person set it is stored; Export's own pin is not.
+function setRoutePin(on){ routePinned=!!on; if(!editing) store('cosight:routepin',routePinned); drawRouteState(); }
+function closeRoute(){
+  clearTimeout(routeOpenT);clearTimeout(routeCloseT);routeHover=false;setRoutePin(false);$('bRoute').focus();
+}
+$('closeRoute').onclick=closeRoute;
+$('bRoute').onclick=function(){if(routePinned||routeHover)closeRoute();else setRoutePin(true);};
+(function(){
+  var rail=$('rail'), route=$('route');
+  function stay(){ clearTimeout(routeCloseT); }
+  rail.addEventListener('mouseenter',function(){ stay(); clearTimeout(routeOpenT); routeOpenT=setTimeout(function(){ routeHover=true; drawRouteState(); },ROUTE_OPEN_MS); });
+  rail.addEventListener('mouseleave',function(){ clearTimeout(routeOpenT); });
+  route.addEventListener('mouseenter',stay);
+  route.addEventListener('mouseleave',function(){ clearTimeout(routeCloseT); routeCloseT=setTimeout(function(){ routeHover=false; drawRouteState(); },ROUTE_CLOSE_MS); });
+})();
+drawRouteState();
+
+// Splitters: the left pane's share of the width, and the narration's height.
+(function(){
+  var vs=$('vsplit'), left=$('left'), panes=$('panes'), hs=$('hsplit'), bottom=$('bottom');
+  var share=load('cosight:split',50); left.style.flexBasis=share+'%';
+  var h=load('cosight:noteh2',null); if(h) bottom.style.height=h+'px';
+  var vd=false, hd=false;
+  vs.addEventListener('pointerdown',function(e){ vd=true; vs.classList.add('drag'); vs.setPointerCapture(e.pointerId); e.preventDefault(); });
+  vs.addEventListener('pointermove',function(e){ if(!vd) return; var r=panes.getBoundingClientRect(); share=Math.min(85,Math.max(15,(e.clientX-r.left)/r.width*100)); left.style.flexBasis=share+'%'; });
+  function vend(){ if(!vd) return; vd=false; vs.classList.remove('drag'); store('cosight:split',Math.round(share)); if(pan.querySelector('svg')) fit(); }
+  vs.addEventListener('pointerup',vend); vs.addEventListener('pointercancel',vend);
+  hs.addEventListener('pointerdown',function(e){ hd=true; hs.classList.add('drag'); hs.setPointerCapture(e.pointerId); e.preventDefault(); });
+  hs.addEventListener('pointermove',function(e){ if(!hd) return; var hh=Math.min(window.innerHeight*0.7,Math.max(120,window.innerHeight-e.clientY)); bottom.style.height=hh+'px'; });
+  function hend(){ if(!hd) return; hd=false; hs.classList.remove('drag'); store('cosight:noteh2',bottom.getBoundingClientRect().height); if(pan.querySelector('svg')) fit(); }
+  hs.addEventListener('pointerup',hend); hs.addEventListener('pointercancel',hend);
+})();
+
+/* ---------- diagram: Mermaid, with raw SVG kept as a fallback ----------
+   Content that is not recognised as Mermaid is injected as raw SVG, since a
+   hand-drawn diagram can do things (data-lines hover links in particular)
+   Mermaid's own markup has no syntax for. Rendered SVG is cached by source, so
+   stepping back and forth never redraws. */
+var MERMAID_START=/^\s*(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment)\b/;
+function isMermaid(src){ return MERMAID_START.test(src||''); }
+var mermaidReady=false;
+function ensureMermaid(){
+  if(mermaidReady||!window.mermaid) return !!window.mermaid;
+  window.mermaid.initialize({startOnLoad:false,suppressErrorRendering:true,theme:'base',securityLevel:'loose',themeVariables:{
+    background:'#161922',primaryColor:'#161922',primaryBorderColor:'#7aa2f7',primaryTextColor:'#e6e9f0',
+    lineColor:'#5b6478',secondaryColor:'#1a1f2b',tertiaryColor:'#161922',
+    noteBkgColor:'#1a1f2b',noteBorderColor:'#bb9af7',noteTextColor:'#e6e9f0',
+    errorBkgColor:'#3a1520',errorTextColor:'#ffd7de'
+  }});
+  mermaidReady=true; return true;
+}
+var mermaidSeq=0, diagramCache={}, paintedSrc=null;
+// Mermaid draws its <svg> at width="100%" under a max-width style, and a hand-drawn one may carry
+// only a viewBox. Inside the absolutely placed pan layer either lays out at the browser's 300px
+// fallback, so fit() shrank an already shrunken drawing. Pinning the drawing to its viewBox size
+// makes the size fit() reasons about the size on screen.
+function sizeSvg(){
+  var svg=pan.querySelector('svg'); if(!svg) return;
+  var vb=(svg.getAttribute('viewBox')||'').split(/[\s,]+/).map(Number);
+  if(vb.length!==4||!(vb[2]>0)||!(vb[3]>0)) return;
+  svg.setAttribute('width',vb[2]); svg.setAttribute('height',vb[3]);
+  svg.style.maxWidth='none';
+}
+function dgIdle(head,text,spin){
+  $('dgidle').innerHTML=(spin?'<span class="spin big"></span>':'')+'<div><b>'+esc(head)+'</b>'+esc(text)+'</div>';
+  $('dgidle').className='idle on';
+}
+function placed(e,src){
+  sizeSvg(); fit(); wireBrush(); wireNodes(); wireReverseBrush();
+  if(src===e.svg) cueSync(e);
+  setTimeout(function(){ if(curEntry()===e&&paintedSrc===src&&fitted) fit(); },400);
+}
+
+/* The rendered SVG for a source: memory first, then the tour server's svg/ cache (a diagram
+   drawn in an earlier session, the project overview above all), then Mermaid, whose result is
+   posted back so the next session skips the render. Raw SVG is its own rendering. Callbacks
+   for one source queue up behind one fetch; a cached hit calls back at once, synchronously. */
+var svgPending={};
+function getSvg(src,cb){
+  if(diagramCache[src]){ cb(null,diagramCache[src]); return; }
+  if(!isMermaid(src)){if(!/^\s*<svg[\s>]/i.test(src)){cb(new Error('Unknown diagram format'));return;}diagramCache[src]=src; cb(null,src); return; }
+  if(!ensureMermaid()){ cb(new Error('Mermaid did not load: vendor/mermaid.min.js is missing or failed.')); return; }
+  if(svgPending[src]){ svgPending[src].push(cb); return; }
+  svgPending[src]=[cb];
+  var key=OV.keyOf(src);
+  function done(err,svg){
+    if(svg) diagramCache[src]=svg;
+    var cbs=svgPending[src]||[]; delete svgPending[src];
+    cbs.forEach(function(f){ try{ f(err,svg); }catch(e){ console.error('diagram',e); } });
+  }
+  fetch('svg/'+key+'.svg',{cache:'no-store'}).then(function(r){ return r.ok?r.text():null; }).catch(function(){ return null; })
+    .then(function(svg){
+      if(svg&&/<svg[\s>]/.test(svg)) return done(null,svg);
+      // Ids unique across sessions: a cached SVG keeps the id it was rendered under, and a
+      // fresh render must not collide with one already in the page.
+      function render(source){return window.mermaid.render('mmd'+Date.now().toString(36)+(++mermaidSeq),source);}
+      return render(src).catch(function(error){
+        var repaired=src.replace(/\|[ \t]+"([^"\n|]+)"[ \t]*\||\|[ \t]*"([^"\n|]+)"[ \t]+\|/g,function(_,left,right){return '|"'+(left||right)+'"|';});
+        if(repaired===src)throw error;
+        return render(repaired);
+      }).then(function(r){
+        done(null,r.svg);
+        try{ fetch('svg',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({key:key,svg:r.svg})}).catch(function(){}); }catch(e){}
+      });
+    })
+    .catch(function(err){ done(err||new Error('The diagram could not be drawn.'),null); });
+}
+
+/* ---------- which picture the pane shows ----------
+   With a project overview in the document, every entry starts on the overview, zoomed to the
+   box it lives in (overview.js, nodeOf), and after a hold crossfades to its own diagram if it
+   drew one; the Overview / This stop button and O flip between the two. The move between
+   entries is a list of steps (overview.js, steps) played on timers: each step first checks
+   that no newer show() has taken the stage, so Next, Back and the voice are never held up and
+   an abandoned move simply stops. Without an overview the pane behaves as it always did.
+
+   The moves are slow on purpose. Leaving a box: its highlight fades, then the view zooms out to the whole overview.
+   Entering one: from the whole overview, travel until the box is in the middle, zoom in, then
+   the box takes the colour and holds long enough to read before the stop's own diagram takes
+   over. Each phase is its own eased glide, so the eye sees where the tour went. The voice never
+   waits for any of it: show() starts speaking at once and the zoom finishes under the words. */
+var showSeq=0, ovTimers=[], ovUp=false, ovZ=null, curOwn=null, lastNode=null, hadShown=false, touched=false;
+// Milliseconds. Each move 1.6–1.8 s on the ease above; the fades match the CSS's .6s / .4s.
+var LEAVE_MS=600, OUT_MS=1800, PAN_MS=1600, IN_MS=1800, MARK_MS=600, HOLD_MS=1600, FADE_MS=400;
+// A travel shorter than this many pixels is not worth its own phase.
+var PAN_MIN_PX=30;
+var glideTimer=null;
+function resetOverview(){ cancelMoves(); ovUp=false; ovZ=null; curOwn=null; lastNode=null; hadShown=false; }
+function cancelMoves(){ ovTimers.forEach(clearTimeout); ovTimers=[]; clearTimeout(glideTimer); pan.classList.remove('anim','fade'); touched=false; }
+// The next transform change glides over `ms`; still() makes them immediate again.
+function glide(ms){ pan.style.setProperty('--glide',ms+'ms'); pan.classList.add('anim'); }
+function still(){ pan.classList.remove('anim'); }
+function paintDiagram(e,dg){
+  var seq=++showSeq; cancelMoves();
+  pan.classList.toggle('still',!motionOn());
+  var ov=overviewOf();
+  if(!ov){ ovUp=false; curOwn=null; paintOwn(e,dg,seq); flipBtn(); return; }
+  curOwn=e.svg?{src:e.svg,own:true,from:e}:null;
+  // Document sections start on their own explanation; Overview remains an explicit toggle.
+  if(e.document&&curOwn){ ovUp=false; lastNode=OV.nodeOf(doc,e); hadShown=true; paintOwn(e,curOwn,seq); flipBtn(); return; }
+  var node=OV.nodeOf(doc,e), prev=lastNode, first=!hadShown;
+  lastNode=node; hadShown=true;
+  var st=OV.steps(prev,node,{motion:motionOn(),own:!!curOwn,first:first});
+  if(curOwn) getSvg(curOwn.src,function(){});           // warm the own diagram while the overview moves
+  ensureOverview(seq,node,function(){ still();markNode(node);fit(); });
+}
+// The plain path: the entry's own diagram, else the newest earlier stop's.
+function paintOwn(e,dg,seq){
+  $('dcap').textContent=dg?(dg.own?(e.diagramCaption||'The flow'):(dg.from.diagramCaption||('The flow, as at stop '+dg.from.n))):'Diagram';
+  $('dwhy').textContent=dg?(dg.from.diagramWhy||(dg.own?'':'this stop drew no diagram of its own')):'';
+  if(!dg){ pan.innerHTML=''; paintedSrc=null; dgIdle('No diagram for this stop','The agent drew none here, and no earlier stop has one.',false); return; }
+  $('dgidle').className='idle';
+  if(dg.src===paintedSrc){ markNode(null); fit(); cueSync(e); return; }
+  pan.innerHTML=''; paintedSrc=null; dgIdle('Drawing the diagram…','',true);
+  getSvg(dg.src,function(err,svg){
+    if(seq!==showSeq) return;             // a newer entry took the stage while this was drawing
+    if(err){ diagramFallback(e); return; }
+    pan.innerHTML=svg; paintedSrc=dg.src; $('dgidle').className='idle'; placed(e,dg.src);
+  });
+}
+function diagramFallback(entry){
+  pan.replaceChildren();paintedSrc=null;ovUp=false;
+  $('dcap').textContent='Step summary';$('dwhy').textContent='';
+  dgIdle(entry?.title||'Diagram unavailable',entry?.say||'Continue with the tour steps.',false);
+}
+function captionOverview(node){
+  var ov=overviewOf();
+  $('dcap').textContent=(ov&&ov.caption)||'The project';
+  $('dwhy').textContent=node?'the box in colour is this stop':'';
+}
+// The overview in the pane, at the zoom it was last left at (so a move out starts from the box
+// the tour was on), then `cb`. Already up: at once.
+function ensureOverview(seq,node,cb){
+  var ov=overviewOf(); if(!ov) return;
+  captionOverview(node); flipBtn();
+  if(ovUp&&paintedSrc===ov.src){ cb(); return; }
+  if(!ovUp){ pan.innerHTML=''; paintedSrc=null; dgIdle('Drawing the project overview…','',true); }
+  getSvg(ov.src,function(err,svg){
+    if(seq!==showSeq) return;
+    if(err){ ovUp=false;var entry=curEntry();if(curOwn&&curOwn.src!==ov.src)paintOwn(entry,curOwn,seq);else diagramFallback(entry);return; }
+    still();
+    pan.innerHTML=svg; paintedSrc=ov.src; ovUp=true; $('dgidle').className='idle';
+    sizeSvg(); wireNodes(); flipBtn();
+    // Back on the box it was left at, still coloured, so leaving it can fade the colour.
+    if(ovZ){ zk=ovZ.k; zx=ovZ.x; zy=ovZ.y; fitted=false; applyZ(); markNode(ovZ.node); } else fit();
+    cb();
+  });
+}
+function runSteps(e,steps,seq){
+  var i=0;
+  function later(ms){ ovTimers.push(setTimeout(step,ms)); }
+  function step(){
+    if(seq!==showSeq||paused||!playing()) return;
+    var s=steps[i++];
+    if(!s){ still(); return; }
+    // A wheel or a drag during the move: the person has the overview; only the own diagram still follows.
+    if(touched&&s.t!=='own'){ while(steps[i]&&steps[i].t!=='own') i++; later(0); return; }
+    if(s.t==='fit'){ still(); markNode(null); fit(); later(20); }
+    else if(s.t==='jump'){ still(); markNode(s.node); zoomNode(s.node); later(0); }
+    else if(s.t==='leave'){ var had=!!pan.querySelector('.tmark'); markNode(null); later(had?LEAVE_MS:0); }
+    else if(s.t==='out'){ if(fitted){ later(0); return; } glide(OUT_MS); fit(); later(OUT_MS); }
+    else if(s.t==='pan'){
+      var z=panTo(s.node);
+      if(!z||Math.hypot(z.x-zx,z.y-zy)<PAN_MIN_PX){ later(0); return; }
+      glide(PAN_MS); zk=z.k; zx=z.x; zy=z.y; fitted=false; applyZ(); later(PAN_MS);
+    }
+    else if(s.t==='in'){ glide(IN_MS); zoomNode(s.node); later(IN_MS); }
+    else if(s.t==='mark'){ markNode(s.node); later(MARK_MS); }
+    else if(s.t==='hold'){ later(HOLD_MS); }
+    else if(s.t==='stay'){ still(); markNode(s.node); if(!findNode(s.node)) zoomNode(s.node); later(0); }
+    else if(s.t==='own'){ still(); swapToOwn(e,seq,motionOn()); }
+    else later(0);
+  }
+  step();
+}
+// The overview gives way to the entry's own diagram: a fade when motion is on, a swap when not.
+function swapToOwn(e,seq,fade){
+  var own=curOwn; if(!own) return;
+  getSvg(own.src,function(err,svg){
+    if(seq!==showSeq) return;
+    if(err){ diagramFallback(e); return; }
+    function swap(){
+      if(seq!==showSeq) return;
+      if(ovUp){ var m=pan.querySelector('.tmark'); ovZ={k:zk,x:zx,y:zy,node:m?lastNode:null}; }
+      still();
+      pan.innerHTML=svg; paintedSrc=own.src; ovUp=false; $('dgidle').className='idle';
+      $('dcap').textContent=e.diagramCaption||'The flow'; $('dwhy').textContent=e.diagramWhy||'';
+      // A drag on the overview was about the overview; the own diagram follows the voice afresh.
+      touched=false;
+      placed(e,own.src); pan.classList.remove('fade'); flipBtn();
+    }
+    if(fade){ pan.classList.add('fade'); ovTimers.push(setTimeout(swap,FADE_MS)); } else swap();
+  });
+}
+// The Overview / This stop button over the pane, and O: shown only when there are two pictures.
+function flipBtn(){
+  var b=$('bFlip'), can=!!(overviewOf()&&curOwn&&curEntry());
+  b.style.display=can?'':'none';
+  b.textContent=ovUp?'This stop':'Overview';
+  b.title=ovUp?'Show this stop\'s own diagram (O)':'Show the project overview, zoomed to this stop\'s box (O)';
+}
+function flipView(){
+  var e=curEntry(); if(!e||!overviewOf()||!curOwn) return;
+  var seq=++showSeq; cancelMoves();
+  if(!ovUp){ ensureOverview(seq,lastNode,function(){ still(); markNode(lastNode); if(lastNode) zoomNode(lastNode); else fit(); }); }
+  else swapToOwn(e,seq,false);
+}
+$('bFlip').onclick=flipView;
+
+/* The box a node id names, in the diagram on screen: Mermaid's data-id, else its element id,
+   else its label (overview.js, nodeMatch); the best match wins. */
+function findNode(id){
+  if(!id) return null;
+  var best=null, bestRank=0;
+  Array.prototype.forEach.call(pan.querySelectorAll('g.node, g.cluster, g.actor'),function(el){
+    var r=OV.nodeMatch({dataId:el.getAttribute('data-id'),id:el.id,label:nodeLabel(el)},id);
+    if(r>bestRank){ best=el; bestRank=r; }
+  });
+  return best;
+}
+// The one box in colour (none for null); the CSS fades the colour in and out.
+function markNode(id){
+  var h=findNode(id);
+  Array.prototype.forEach.call(pan.querySelectorAll('.tmark'),function(el){ if(el!==h) el.classList.remove('tmark'); });
+  if(h) h.classList.add('tmark');
+}
+// A node's box in the diagram's own pixels, read off the screen and divided back by the pan's
+// on-screen scale (so it holds mid-transition too), then the zoom that centres it (overview.js, zoomFor).
+function nodeBox(el){
+  var p=pan.getBoundingClientRect(), r=el.getBoundingClientRect();
+  var W=pan.offsetWidth, H=pan.offsetHeight;
+  if(!p.width||!p.height||!W||!H) return null;
+  var kx=W/p.width, ky=H/p.height;
+  return {x:(r.left-p.left)*kx, y:(r.top-p.top)*ky, w:r.width*kx, h:r.height*ky};
+}
+function zoomFor(id){
+  var el=findNode(id), box=el&&nodeBox(el), f=fitCalc();
+  return el&&box&&f?OV.zoomFor(box,{w:wrap.clientWidth,h:wrap.clientHeight},f.k):null;
+}
+function zoomNode(id){
+  var z=zoomFor(id);
+  if(!z){
+    fit();
+    if(id&&!findNode(id)) $('dwhy').textContent='stop\'s box '+id+' not found in the overview';
+    return;
+  }
+  zk=z.k; zx=z.x; zy=z.y; fitted=false; applyZ();
+}
+// The travel before the zoom: the whole-overview scale, moved so the box is in the middle.
+function panTo(id){
+  var el=findNode(id), box=el&&nodeBox(el), f=fitCalc();
+  if(!el||!box||!f) return null;
+  return {k:f.k, x:wrap.clientWidth/2-(box.x+box.w/2)*f.k, y:wrap.clientHeight/2-(box.y+box.h/2)*f.k};
+}
+
+/* ---------- the stop's own diagram follows the voice ----------
+   A stop's `focus` names, per sentence of what it says, the box in its own diagram that sentence
+   is about. While that diagram is on screen and the voice plays, the page
+   works out which sentence the voice is on and glides to that sentence's box and colours it; ""
+   or the end of the speech glides back to the whole diagram. Neither voice gives word timings
+   for the mp3, so a sentence's start is its share of the characters times the speech's length
+   (overview.js, cuesOf); the browser voice reports the character it reached when it can
+   (boundary events), else the same estimate runs on the clock. The cues read the voice's own
+   position, so Pause holds them and Replay starts them over. A drag or zoom by hand (`touched`)
+   leaves the view to the person for the rest of that stop: the colour still follows, the view
+   does not. Motion off: colour only, no movement. */
+var FOCUS_MS=1200;
+// The browser voice's speed at 1×, in characters a second, for when it reports no boundaries.
+var SYNTH_CPS=14;
+var cue={id:null,mode:'',idx:-1,char:-1,t0:0,pausedMs:0,pausedAt:0}, cueTimer=null;
+function ownUp(e){ return !!(e&&e.svg&&!ovUp&&paintedSrc===e.svg); }
+function hasFocus(e){ return !!(e&&e.svg&&e.say&&e.focus&&e.focus.some(Boolean)); }
+function cueStart(e,mode){
+  cue={id:e.id,mode:mode,idx:-1,char:-1,t0:performance.now(),pausedMs:0,pausedAt:0};
+  clearInterval(cueTimer); cueTimer=null;
+  if(hasFocus(e)) cueTimer=setInterval(cueTick,150);
+}
+function cueStop(){ clearInterval(cueTimer); cueTimer=null; cue.id=null; }
+// The voice stopped short (muted, replayed): the view goes back to the whole diagram, as at the end.
+function cueHalt(){ var e=curEntry(); if(e&&cue.id===e.id) cueEnd(e); else cueStop(); }
+function cueTick(){
+  var e=curEntry();
+  if(paused||!playing()||!e||cue.id!==e.id||speaking!==e.id||!speakingStarted||!hasFocus(e)) return;
+  var t, ch=-1;
+  if(cue.mode==='audio'){
+    if(!au.duration||!isFinite(au.duration)) return;
+    var cues=OV.cuesOf(e.say,e.focus,au.duration); t=au.currentTime;
+  } else {
+    var sp=window.speechSynthesis, now=performance.now();
+    // The page's own Pause counts too: Chrome's voice on Linux does not always report being paused.
+    if(paused||(sp&&sp.paused)){ if(!cue.pausedAt) cue.pausedAt=now; return; }
+    if(cue.pausedAt){ cue.pausedMs+=now-cue.pausedAt; cue.pausedAt=0; }
+    cues=OV.cuesOf(e.say,e.focus,e.say.length/(SYNTH_CPS*rate));
+    t=(now-cue.t0-cue.pausedMs)/1000; ch=cue.char;
+  }
+  // While the overview still has the stage, the cue waits; it lands with the own diagram.
+  if(!ownUp(e)) return;
+  var i=OV.cueAt(cues,t,ch);
+  if(i===cue.idx) return;
+  cue.idx=i; focusOn(i>=0?cues[i].node:'');
+}
+// The own diagram just went up (or came back): apply where the voice is now.
+function cueSync(e){ if(cue.id===e.id){ cue.idx=-1; cueTick(); } }
+function cueEnd(e){
+  var was=cue.id===e.id&&cue.idx>=0; cueStop();
+  if(was&&ownUp(e)) focusOn('');
+}
+function focusOn(id){
+  var el=id?findNode(id):null;
+  markNode(el?id:null);
+  if(paused||!playing()||touched||!motionOn()) return;
+  var z=el?zoomFor(id):fitCalc(); if(!z) return;
+  glide(FOCUS_MS); zk=z.k; zx=z.x; zy=z.y; fitted=!el; applyZ();
+  clearTimeout(glideTimer); glideTimer=setTimeout(still,FOCUS_MS+50);
+}
+// A hand on the diagram: the view is the person's until the next stop.
+function handFit(){ touched=true; still(); fit(); }
+
+/* ---------- pan and zoom ---------- */
+var zk=1, zx=0, zy=0;
+var pan=$('dgpan'), wrap=$('dgwrap');
+function applyZ(){
+  pan.style.transform='translate('+zx+'px,'+zy+'px) scale('+zk+')';
+  $('zlvl').textContent=Math.round(zk*100)+'%';
+}
+// Fit means the whole diagram, both ways. While fitted, the diagram refits as its pane changes size; a
+// zoom or a drag ends that until the next Fit.
+var fitted=true;
+// The zoom that shows the whole diagram, without applying it; null when there is nothing to fit.
+function fitCalc(){
+  var svg=pan.querySelector('svg'); if(!svg) return null;
+  var vb=(svg.getAttribute('viewBox')||'').split(/[\s,]+/).map(Number);
+  var w=vb.length===4?vb[2]:svg.clientWidth, h=vb.length===4?vb[3]:svg.clientHeight;
+  if(!w||!h) return null;
+  var cw=wrap.clientWidth-28, ch=wrap.clientHeight-28;
+  if(cw<=0||ch<=0) return null;
+  var k=Math.min(cw/w, ch/h, 1.6);
+  return {k:k, x:(wrap.clientWidth-w*k)/2, y:(wrap.clientHeight-h*k)/2};
+}
+function fit(){
+  var z=fitCalc(); if(!z) return;
+  zk=z.k; zx=z.x; zy=z.y;
+  fitted=true; applyZ();
+}
+if(window.ResizeObserver) new ResizeObserver(function(){ if(fitted&&pan.querySelector('svg')) fit(); }).observe(wrap);
+function zoomAt(cx,cy,factor){
+  fitted=false; touched=true; pan.classList.remove('anim');
+  var nk=Math.min(6,Math.max(.05,zk*factor));
+  zx=cx-(cx-zx)*(nk/zk); zy=cy-(cy-zy)*(nk/zk); zk=nk; applyZ();
+}
+wrap.addEventListener('wheel',function(e){
+  e.preventDefault();
+  var r=wrap.getBoundingClientRect();
+  zoomAt(e.clientX-r.left, e.clientY-r.top, e.deltaY<0?1.12:1/1.12);
+},{passive:false});
+var dragging=false,lx=0,ly=0,moved=0;
+wrap.addEventListener('pointerdown',function(e){
+  if(e.target.closest('#pop')) return;
+  if(e.button===1 || (e.button===0 && !e.target.closest('[data-lines]'))){
+    dragging=true; moved=0; lx=e.clientX; ly=e.clientY; pan.classList.remove('anim');
+    wrap.classList.add('drag'); wrap.setPointerCapture(e.pointerId); e.preventDefault();
+  }
+});
+wrap.addEventListener('pointermove',function(e){
+  if(!dragging) return;
+  moved+=Math.abs(e.clientX-lx)+Math.abs(e.clientY-ly);
+  zx+=e.clientX-lx; zy+=e.clientY-ly; lx=e.clientX; ly=e.clientY; if(moved>3){ fitted=false; touched=true; } applyZ();
+});
+function endDrag(e){ if(dragging){ dragging=false; wrap.classList.remove('drag');
+  try{wrap.releasePointerCapture(e.pointerId);}catch(_){} } }
+wrap.addEventListener('pointerup',endDrag);
+wrap.addEventListener('pointercancel',endDrag);
+wrap.addEventListener('dblclick',handFit);
+wrap.addEventListener('auxclick',function(e){ if(e.button===1) e.preventDefault(); });
+$('zIn').onclick=function(){ zoomAt(wrap.clientWidth/2,wrap.clientHeight/2,1.25); };
+$('zOut').onclick=function(){ zoomAt(wrap.clientWidth/2,wrap.clientHeight/2,1/1.25); };
+$('zFit').onclick=handFit;
+// A resize refits, except while the voice holds a box of the own diagram: then it goes back to that box.
+window.addEventListener('resize',function(){
+  if(!pan.querySelector('svg')) return;
+  var e=curEntry();
+  if(e&&cue.id===e.id&&cue.idx>=0&&ownUp(e)&&!touched){ cue.idx=-1; cueTick(); return; }
+  fit();
+});
+
+/* ---------- click a box to ask ---------- */
+function nodeLabel(node){
+  var l=node.querySelector('.nodeLabel, .label, foreignObject, text');
+  var t=(l?l.textContent:node.textContent)||'';
+  return t.replace(/\s+/g,' ').trim().slice(0,80)||'this';
+}
+function wireNodes(){
+  Array.prototype.forEach.call(pan.querySelectorAll('g.node, g.actor, g.cluster'),function(node){
+    if(node.hasAttribute('data-lines')) return;
+    node.addEventListener('click',function(ev){
+      if(moved>6) return;                   // a drag that ended on a box is not a click
+      ev.stopPropagation();
+      showPop(nodeLabel(node),ev.clientX,ev.clientY);
+    });
+  });
+}
+function showPop(label,cx,cy){
+  var p=$('pop'), r=wrap.getBoundingClientRect();
+  p.innerHTML='<div class="pl">About <b>'+esc(label)+'</b></div>'
+    +'<button data-q="Show me the code behind &quot;'+esc(label)+'&quot;.">Show me the code behind it</button>'
+    +'<button data-q="How does &quot;'+esc(label)+'&quot; fit into the flow?">How does it fit into the flow?</button>'
+    +'<div class="row"><input placeholder="Ask something else about it…"><button class="go">Ask</button></div>';
+  p.className='on';
+  var x=Math.min(cx-r.left+8, wrap.clientWidth-p.offsetWidth-8), y=Math.min(cy-r.top+8, wrap.clientHeight-p.offsetHeight-8);
+  p.style.left=Math.max(4,x)+'px'; p.style.top=Math.max(4,y)+'px';
+  Array.prototype.forEach.call(p.querySelectorAll('button[data-q]'),function(b){ b.onclick=function(){ ask(b.dataset.q); hidePop(); }; });
+  var inp=p.querySelector('input'), go=p.querySelector('button.go');
+  function send(){ var t=inp.value.trim(); if(!t) return; ask('About "'+label+'" in the diagram: '+t); hidePop(); }
+  go.onclick=send; inp.onkeydown=function(e){ if(e.key==='Enter') send(); if(e.key==='Escape') hidePop(); };
+  inp.focus();
+}
+function hidePop(){ $('pop').className=''; }
+document.addEventListener('pointerdown',function(e){ if(!e.target.closest('#pop') && !e.target.closest('g.node, g.actor, g.cluster')) hidePop(); });
+
+/* ---------- brushing and linking (raw SVG with data-lines) ---------- */
+var pinned=null;
+function clearBrush(){
+  pan.classList.remove('brushing');
+  Array.prototype.forEach.call(pan.querySelectorAll('[data-lines].on'),function(n){n.classList.remove('on');});
+  Array.prototype.forEach.call($('codewrap').querySelectorAll('.brush'),function(r){r.classList.remove('brush');});
+  $('linkbar').className='';
+}
+function parseLines(spec){           // "137,142-145" -> [137,142,143,144,145]
+  var out=[];
+  String(spec||'').split(',').forEach(function(part){
+    var m=part.trim().match(/^(\d+)\s*-\s*(\d+)$/);
+    if(m){ for(var i=+m[1];i<=+m[2];i++) out.push(i); }
+    else if(part.trim()) out.push(parseInt(part,10));
+  });
+  return out;
+}
+function brush(node,lines,label,pin){
+  clearBrush();
+  pan.classList.add('brushing'); node.classList.add('on');
+  var rows=[];
+  lines.forEach(function(n){
+    var r=sourceRow(n);
+    if(r){ r.classList.add('brush'); rows.push(r); }
+  });
+  if(rows.length) rows[0].scrollIntoView({block:'center',behavior:'smooth'});
+  var shown=rows.map(function(r){return r.dataset.line;});
+  $('linktext').innerHTML='<b>'+esc(label)+'</b> '+
+    (shown.length? ('maps to line'+(shown.length>1?'s':'')+' '+shown.join(', ')) : 'maps to lines '+lines.join(', ')+', which are not in this file');
+  $('linkpin').textContent=pin?'pinned  .  click again or Esc to release':'';
+  $('linkbar').className='on';
+}
+function wireBrush(){
+  Array.prototype.forEach.call(pan.querySelectorAll('[data-lines]'),function(node){
+    var lines=parseLines(node.getAttribute('data-lines'));
+    var label=node.getAttribute('data-label')||(node.querySelector('text')?node.querySelector('text').textContent:'this');
+    node.addEventListener('mouseenter',function(){ if(!pinned) brush(node,lines,label,false); });
+    node.addEventListener('mouseleave',function(){ if(!pinned) clearBrush(); });
+    node.addEventListener('click',function(e){
+      e.stopPropagation();
+      if(pinned===node){ pinned=null; clearBrush(); }
+      else { pinned=node; brush(node,lines,label,true); }
+    });
+  });
+}
+function wireReverseBrush(){
+  var linked=pan.querySelectorAll('[data-lines]'); if(!linked.length) return;
+  Array.prototype.forEach.call($('codewrap').querySelectorAll('[data-line]'),function(row){
+    var n=parseInt(row.dataset.line,10);
+    var node=null;
+    Array.prototype.forEach.call(linked,function(d){
+      if(!node && parseLines(d.getAttribute('data-lines')).some(line=>line>=n&&line<=Number(row.dataset.end||n))) node=d;
+    });
+    if(!node) return;
+    row.classList.add('linked');
+    row.addEventListener('mouseenter',function(){
+      if(pinned) return;
+      var label=node.getAttribute('data-label')||(node.querySelector('text')?node.querySelector('text').textContent:'this');
+      brush(node,parseLines(node.getAttribute('data-lines')),label,false);
+    });
+    row.addEventListener('mouseleave',function(){ if(!pinned) clearBrush(); });
+  });
+}
+
+/* ---------- the code pane: the whole file ---------- */
+var fileCache={}, codeSeq=0, MAX_ROWS=20000;
+function paintCode(e){
+  var cw=$('codewrap'), seq=++codeSeq;
+  $('fcap').textContent=e.file?(e.file+'  ::  '+e.start+'-'+e.end+(e.fileLines?'  ·  '+e.fileLines+' lines':'')):'No file for this step';
+  $('fwhy').textContent=e.codeWhy||'';
+  if(!e.fileUrl){ cw.innerHTML='<div class="idle on" id="codeidle"><b>No file for this step</b>This stop is about the idea, not a line of code.</div>'; return; }
+  function draw(text){
+    if(seq!==codeSeq) return;
+    cw.innerHTML=renderFile(text,e);
+    scrollToRange(e);
+    if(pan.querySelector('[data-lines]')) wireReverseBrush();
+  }
+  if(fileCache[e.fileUrl]!==undefined){ draw(fileCache[e.fileUrl]); return; }
+  cw.innerHTML='<div class="idle on" id="codeidle"><span class="spin big"></span><div><b>Loading '+esc(e.file)+'</b></div></div>';
+  fetch(e.fileUrl,{cache:'no-store'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+    .then(function(t){ fileCache[e.fileUrl]=t; draw(t); })
+    .catch(function(err){ if(seq!==codeSeq) return; cw.innerHTML='<div class="idle on" id="codeidle"><b>Could not load the file</b>'+esc(String(err.message||err))+'</div>'; });
+}
+function renderFile(text,e){
+  if(/\.(?:md|markdown|mdown|mkd)$/i.test(e.file||'')||/^(?:md|markdown)$/i.test(e.lang||''))return renderMarkdownFile(text,e);
+  var hi={}; (e.highlight||[]).forEach(function(n){hi[n]=1;});
+  var lines=text.replace(/\n$/,'').split('\n'), st={block:null,tmpl:false}, lang=e.lang, cut=lines.length>MAX_ROWS;
+  if(cut) lines=lines.slice(0,MAX_ROWS);
+  var rows=lines.map(function(l,i){
+    var n=i+1, cls=(n>=e.start&&n<=e.end?'rng':'')+(hi[n]?' hi':'');
+    return '<tr data-line="'+n+'" class="'+cls+'"><td class="ln">'+n+'</td><td>'+hl(l,lang,st)+'</td></tr>';
+  }).join('');
+  return (cut?'<div class="capnote">Showing the first '+MAX_ROWS+' lines of '+(e.fileLines||'this file')+'.</div>':'')+'<table class="code">'+rows+'</table>';
+}
+var markdownRenderer;
+function renderMarkdownFile(text,entry){
+  if(!markdownRenderer){
+    markdownRenderer=window.markdownit({html:false});
+    markdownRenderer.renderer.rules.image=function(tokens,index){return markdownRenderer.utils.escapeHtml(tokens[index].content);};
+    markdownRenderer.renderer.rules.link_open=function(){return '<span class="md-link">';};
+    markdownRenderer.renderer.rules.link_close=function(){return '</span>';};
+  }
+  var tokens=markdownRenderer.parse(text,{}),highlight=new Set(entry.highlight||[]);
+  for(const token of tokens){
+    if(!token.map||!['heading_open','paragraph_open','tr_open','fence','code_block','hr','list_item_open'].includes(token.type))continue;
+    var start=token.map[0]+1,end=token.map[1];
+    token.attrSet('data-line',String(start));token.attrSet('data-end',String(end));
+    if(start<=entry.end&&end>=entry.start)token.attrJoin('class','rng');
+    for(const n of highlight)if(start<=n&&n<=end){token.attrJoin('class','hi');break;}
+  }
+  return '<article class="source-markdown">'+markdownRenderer.renderer.render(tokens,markdownRenderer.options,{})+'</article>';
+}
+function sourceRow(line){
+  const pane=$('codewrap'),exact=pane.querySelector('[data-line="'+line+'"]');
+  if(exact)return exact;
+  let nearest=null;
+  for(const block of pane.querySelectorAll('[data-end]')){
+    if(+block.dataset.line<=line&&+block.dataset.end>=line)return block;
+    if(!nearest && +block.dataset.line>=line)nearest=block;
+  }
+  return nearest;
+}
+function scrollToRange(e,behavior){
+  var cw=$('codewrap'), row=sourceRow(e.start); if(!row)return;
+  var top=cw.scrollTop+row.getBoundingClientRect().top-cw.getBoundingClientRect().top-Math.max(24,Math.min(80,cw.clientHeight*0.12));
+  cw.scrollTo({top:Math.max(0,top),left:0,behavior:behavior||'auto'});
+}
+$('bRange').onclick=function(){var e=curEntry();if(e)scrollToRange(e,'smooth');};
+
+/* ---------- the voice ----------
+   The server makes an mp3 per stop; this page plays it when a stop is shown and moves on
+   when it ends. Before the mp3 exists the page waits a little, then speaks the text itself
+   with the browser's own voice, so the tour never sits silent on a slow or absent Kokoro. */
+var voiceBlocked=false, speechAttempt=0;
+var narrationStatus='';
+var au=$('au'), speaking=null, speakingStarted=false, voiceTimer=null, utter=null, advanceTimer=null, speakSrc='';
+function paintVoiceNote(){
+  var v=$('voice'), e=curEntry();
+  if(!e||muted){ v.innerHTML=muted&&e?'voice off':''; return; }
+  if(voiceBlocked){ v.textContent='Press Play to start the voice'; return; }
+  if(narrationStatus){ v.textContent=narrationStatus; return; }
+  if(paused){ v.textContent=(window.CoSightSpeech?.engine()==='moonshine' && window.CoSightSpeech.currentStatus?.(e.say||'')) || 'Paused · Press Play for narration'; return; }
+  if(editing && speaking!==e.id){ v.textContent='Export mode: the voice plays when you press Play'; return; }
+  if(speaking===e.id && !speakingStarted){ v.innerHTML='<span class="spin"></span> '+(doc&&doc.tts&&doc.tts.state==='starting'?'starting Kokoro…':'preparing the voice…'); return; }
+  if(heldNext){ v.textContent='holding step '+e.n+' while you type; step '+heldNext+' follows'; return; }
+  if(waitingFor){ v.innerHTML='<span class="spin"></span> step '+waitingFor+' is on its way'; return; }
+  if((!window.CoSightSpeech||CoSightSpeech.engine()!=='moonshine')&&doc&&doc.tts&&doc.tts.state==='off'&&e.say&&!e.audio){ v.textContent='browser voice (Kokoro is off)'; return; }
+  v.textContent='';
+}
+function speak(e){
+  if(globalThis.document?.body?.classList.contains('home-mode'))return;
+  stopSpeech();
+  if(paused||muted||!e||!e.say) return;
+  speaking=e.id; speakingStarted=false; paintAudio();
+  if(!window.CoSightSpeech && typeof load==='function' && load('cosight:voiceEngine','moonshine')==='moonshine'){
+    window.addEventListener('cosight:speech-ready',function(){if(speaking===e.id&&!paused&&!muted)speak(e);},{once:true});return;
+  }
+  if(window.CoSightSpeech&&CoSightSpeech.engine()==='moonshine'){
+    var attempt=speechAttempt;
+    CoSightSpeech.prepare(e.say,function(message){if(attempt===speechAttempt){narrationStatus=message;paintVoiceNote();}}).then(function(url){
+      if(attempt!==speechAttempt||speaking!==e.id||muted||paused)return;
+      narrationStatus='';playAudio(Object.assign({},e,{audio:url}));
+    }).catch(function(error){
+      if(attempt!==speechAttempt||error.name==='AbortError')return;
+      paused=true;autoplay=false;speaking=null;speakingStarted=false;narrationStatus='Moonshine voice unavailable: '+error.message;paintVoiceNote();paintAudio();
+    });return;
+  }
+  if(e.audio){ playAudio(e); return; }
+  if(doc.tts.state==='off'){ synth(e); return; }
+  // The mp3 is on its way; give it a moment before the browser speaks instead.
+  voiceTimer=setTimeout(function(){ if(speaking===e.id&&!speakingStarted) synth(e); },10000);
+  paintVoiceNote();
+}
+function playAudio(e){
+  var attempt=++speechAttempt;
+  speakSrc=e.audio; au.src=e.audio; speakingStarted=true; cueStart(e,'audio');
+  // Kept until the voice really plays, so a play the browser blocks still resumes after the click.
+  if(resumeAt&&resumeAt.id===e.id){
+    var t=Math.max(0,resumeAt.t-1);
+    au.addEventListener('loadedmetadata',function once(){ au.removeEventListener('loadedmetadata',once); try{ au.currentTime=Math.min(t,(au.duration||t)-0.2); }catch(err){} });
+  } else resumeAt=null;
+  try{ au.playbackRate=rate; au.preservesPitch=true; }catch(err){}
+  au.play().then(function(){
+    if(attempt!==speechAttempt) return;
+    voiceBlocked=false; resumeAt=null; $('unmute').className=''; paintVoiceNote();
+    if(!paused&&curEntry()?.id===e.id&&ovUp&&curOwn)swapToOwn(e,showSeq,false);
+  }).catch(function(err){
+    if(attempt!==speechAttempt) return;
+    speakingStarted=false;
+    if(err.name==='NotAllowedError'){ voiceBlocked=true; $('unmute').className='on'; }
+    else if(err.name!=='AbortError') synth(e);
+    paintVoiceNote(); paintAudio();
+  });
+}
+function synth(e){
+  if(!window.speechSynthesis){ onSpeechEnd(e); return; }
+  speakSrc='';
+  window.speechSynthesis.resume();
+  utter=new SpeechSynthesisUtterance(globalThis.CoSightNarrationText?CoSightNarrationText(e.say):e.say); utter.rate=rate; speakingStarted=true; cueStart(e,'synth');
+  // The character the voice reached, where the browser's voice says (local voices do, some network ones never).
+  utter.onboundary=function(ev){ if(cue.id===e.id&&ev.charIndex>=0){ cue.char=ev.charIndex; cueTick(); } };
+  // Only this utterance may end the speech: a cancelled one reports its error late, after a
+  // Replay or a resume has started the same stop again, and must not end the new one.
+  var u=utter;
+  u.onend=function(){ if(utter===u&&speaking===e.id) onSpeechEnd(e); };
+  u.onerror=function(ev){ if(utter!==u||speaking!==e.id) return; speakingStarted=false; if(ev.error==='not-allowed'){ voiceBlocked=true; $('unmute').className='on'; } paintVoiceNote(); paintAudio(); };
+  window.speechSynthesis.speak(utter); paintVoiceNote(); paintAudio();
+}
+function stopSpeech(){
+  clearTimeout(voiceTimer); clearTimeout(advanceTimer); voiceTimer=null; advanceTimer=null;
+  speechAttempt++;narrationStatus='';window.CoSightSpeech?.cancel();
+  cueHalt(); speaking=null; speakingStarted=false;
+  try{ au.pause(); }catch(e){}
+  if(window.speechSynthesis){ try{ window.speechSynthesis.cancel(); }catch(e){} }
+  utter=null; paintAudio();
+}
+function onSpeechEnd(e){
+  cueEnd(e);
+  speaking=null; speakingStarted=false;
+  if(e.ask||(!nextDelivered(e.n)&&e.n>=planLen())){paused=true;autoplay=false;}
+  paintAudio();
+  if(paused||!autoplay||muted||editing||cur===null||curEntry()!==e) return;
+  if(e.ask) return;                                  // an answer ends where it ends; Next goes back
+  var nx=nextDelivered(e.n);
+  if(nx){ advanceTimer=setTimeout(function(){ if(autoplay&&curEntry()===e) moveOn(nx); },700); }
+  else if(e.n<planLen()){ waitingFor=e.n+1; paintVoiceNote(); }
+}
+// The question box in use (focused, or holding words) pins the step it is about: the tour
+// waits, says so, and moves on once the box is left or cleared.
+function typing(){ var i=$('askin'); return document.activeElement===i || i.value.trim().length>0; }
+var holdTimer=null;
+function moveOn(n){
+  if(typing()){
+    heldNext=n; paintVoiceNote();
+    // Watched, not only event-driven: a blur the browser never delivers must not pin the tour.
+    clearInterval(holdTimer); holdTimer=setInterval(releaseHold,400);
+    return;
+  }
+  heldNext=0; show({type:'stop',n:n},true);
+}
+function releaseHold(){
+  if(!heldNext){ clearInterval(holdTimer); holdTimer=null; return; }
+  if(typing()) return;
+  clearInterval(holdTimer); holdTimer=null;
+  var n=heldNext; heldNext=0;
+  if(autoplay&&!muted&&stopByN(n)) show({type:'stop',n:n},true); else paintVoiceNote();
+}
+au.addEventListener('ended',function(){ var e=curEntry(); if(e&&speaking===e.id) onSpeechEnd(e); });
+au.addEventListener('seeked',cueTick);
+au.addEventListener('error',function(){ var e=curEntry(); if(e&&speaking===e.id&&speakingStarted){ synth(e); } });
+
+function fmt(t){ if(!isFinite(t)) return '0:00'; var m=Math.floor(t/60),x=Math.floor(t%60); return m+':'+(x<10?'0':'')+x; }
+function playing(){ return (speakingStarted && ((speakSrc&&!au.paused&&!au.ended) || (window.speechSynthesis&&window.speechSynthesis.speaking&&!window.speechSynthesis.paused))); }
+function paintAudio(){
+  var b=$('bPlay'), e=curEntry();
+  b.disabled=!e||!e.say; $('bAudio').disabled=!e||!e.say;
+  b.innerHTML=(!paused&&speaking!==null)?'&#10073;&#10073; Pause':'&#9654; Play';
+  b.title=paused?'Paused: pages you move to stay silent. Play speaks this one (Space)':'Pause the voice (Space)';
+  $('atime').textContent=(e&&au.duration&&(speakSrc===e.audio||speakSrc.startsWith('blob:')))?(fmt(au.currentTime)+' / '+fmt(au.duration)):'';
+}
+['timeupdate','play','pause','ended','loadedmetadata'].forEach(function(ev){ au.addEventListener(ev,paintAudio); });
+
+function setMuted(on,say){
+  muted=!!on; store('cosight:muted',muted);
+  drawHeader();
+  if(muted){ stopSpeech(); waitingFor=0; }
+  else if(!paused) { var e=curEntry(); if(e) speak(e); }
+  paintVoiceNote();
+  if(say!==false) flash(muted?'Voice off.':'Voice on.');
+}
+
+/* ---------- buttons ---------- */
+function goNext(){
+  var e=curEntry(); if(!e) return;
+  if(editing){ var seq=editSeq(), at=seq.indexOf(EX.keyOf(e)); if(at>=0&&at<seq.length-1) show(EX.refOf(seq[at+1]),true); return; }
+  autoplay=true;
+  if(e.ask){ if(stopByN(e.from)) show({type:'stop',n:e.from},true); return; }
+  var nx=nextDelivered(e.n);
+  if(nx) show({type:'stop',n:nx},true);
+  else if(e.n<planLen()){ waitingFor=e.n+1; paintVoiceNote(); flash('Step '+(e.n+1)+' has not arrived yet; it plays when it does.'); }
+}
+function goPrev(){
+  var e=curEntry(); if(!e) return;
+  if(editing){ var seq=editSeq(), at=seq.indexOf(EX.keyOf(e)); if(at>0) show(EX.refOf(seq[at-1]),true); return; }
+  autoplay=false;
+  var p=e.ask?e.from:prevDelivered(e.n);
+  if(p&&stopByN(p)) show({type:'stop',n:p},true);
+}
+$('bPrev').onclick=goPrev;
+$('bNext').onclick=goNext;
+$('bLive').onclick=function(){ var l=liveRef(); if(l){ autoplay=true; show(l,true); } };
+$('bRestart').onclick=function(){ if(firstN()){ paused=false; autoplay=true; if(muted) setMuted(false,false); show({type:'stop',n:firstN()},true); } };
+$('bMute').onclick=function(){ setMuted(!muted); };
+function pauseNow(){
+  paused=true; autoplay=false; waitingFor=0; heldNext=0;
+  if(typeof cancelMoves==='function')cancelMoves();
+  clearTimeout(advanceTimer);advanceTimer=null;
+  if(!speakingStarted)stopSpeech();
+  else if(speakSrc&&!au.paused) au.pause(); else if(window.speechSynthesis) window.speechSynthesis.pause();
+  paintAudio(); paintVoiceNote();
+}
+function resumeNow(){
+  voiceBlocked=false; $('unmute').className='';
+  var e=curEntry(); paused=false; autoplay=true;
+  if(!e||!e.say){ paintAudio(); paintVoiceNote(); return; }
+  if(muted){ setMuted(false,false); return; }
+  if(speaking===e.id&&speakingStarted){
+    if(speakSrc&&au.paused&&!au.ended){ au.play().catch(function(){ $('unmute').className='on'; }); }
+    else if(window.speechSynthesis&&window.speechSynthesis.paused) window.speechSynthesis.resume();
+    else speak(e);
+  } else speak(e);
+  paintAudio(); paintVoiceNote();
+}
+$('bPlay').onclick=function(){
+  if(!paused&&(speaking!==null||playing())) pauseNow(); else resumeNow();
+};
+$('bAudio').onclick=function(){ var e=curEntry(); if(e){ paused=false; autoplay=true; if(muted) setMuted(false,false); else speak(e); paintVoiceNote(); } };
+$('bUnmute').onclick=function(){ voiceBlocked=false; $('unmute').className=''; resumeNow(); };
+$('bHelp').onclick=function(){ $('settings').classList.remove('on'); $('help').classList.toggle('on'); };
+$('help').onclick=function(){ this.classList.remove('on'); };
+
+/* ---------- settings ----------
+   One card, styled like the help: for now only Zoom between stops. Esc or a click on the
+   backdrop closes it; a click inside picks. */
+function drawSettings(){
+  Array.prototype.forEach.call($('motionsw').querySelectorAll('button'),function(b){ b.className=b.dataset.v===motion?'on':''; });
+}
+function setMotion(v){
+  motion=['auto','on','off'].indexOf(v)<0?'auto':v; store('cosight:motion',motion); drawSettings();
+}
+Array.prototype.forEach.call($('motionsw').querySelectorAll('button'),function(b){ b.onclick=function(){ setMotion(b.dataset.v); }; });
+$('bSettings').onclick=function(){ $('help').classList.remove('on'); drawSettings(); $('settings').classList.toggle('on'); };
+$('settings').addEventListener('pointerdown',function(e){ if(e.target===this) this.classList.remove('on'); });
+drawSettings();
+
+// Persistent, unlike flash(): it stays until the next entry arrives, so a request
+// that has not been answered yet never looks like one that vanished.
+function flash(msg,good){
+  var e=$('sent');
+  e.textContent=msg; e.className='on'; e.style.color=(good===false)?'#f7768e':'#9ece6a';
+  clearTimeout(flash.t); flash.t=setTimeout(function(){e.className='';},4000);
+}
+function post(kind,text){
+  if(reviewingArchive) return Promise.reject(new Error('Return to the live tour to ask the connected agent.'));
+  var e=curEntry()||{};
+  return fetch('request',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({kind:kind,text:text||'',step:curN()||null,heading:e.title||'',file:e.file||''})})
+    .then(async function(r){ var result=await r.json(); if(!r.ok) throw new Error(result.error||'Request failed'); return result; });
+}
+function ask(t){
+  if(window.CoSightSpeech?.recording())return;
+  t=(t||'').trim(); if(!t) return;
+  var step=curN();
+  post('question',t).then(function(){
+    pendingAsks.push({text:t,step:step,at:Date.now()});
+    drawRoute();
+    flash('Question sent. The answer lands here, under step '+(step||'1')+'.');
+  }).catch(function(error){ flash(reviewingArchive?'Return to the live tour to ask the connected agent.':(error.message||'Could not reach the tour server.'),false); });
+}
+$('bSend').onclick=function(){ if(window.CoSightSpeech?.recording())return; var i=$('askin');if(window.CoSightHome?.visible()){window.CoSightHome.ask(i.value);return;} ask(i.value); i.value=''; };
+$('askin').addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();if(window.CoSightHome?.visible()){window.CoSightHome.ask(this.value);return;} ask(this.value); this.value=''; } if(e.key==='Escape') this.blur(); });
+$('askin').addEventListener('blur',function(){ setTimeout(releaseHold,0); });
+$('askin').addEventListener('input',function(){ if(!this.value.trim() && document.activeElement!==this) releaseHold(); });
+$('bSlower').onclick=function(){ setRate(rate-0.1); };
+$('bFaster').onclick=function(){ setRate(rate+0.1); };
+$('bRate').onclick=function(){ setRate(1); };
+$('bHold').onclick=function(){
+  autoplay=false; waitingFor=0; paintVoiceNote();
+  post('hold').then(function(){flash('Asked the agent to hold here.');})
+    .catch(function(error){flash(reviewingArchive?'Return to the live tour to ask the connected agent.':(error.message||'Could not reach the tour server.'),false);});
+};
+
+/* ---------- Export mode (formerly Edit): the export list ----------
+   The route list becomes the list a Markdown export is made from: every stop and every answer,
+   each answer under the stop it was asked at, dragged into order, a tick box on each; only the
+   ticked ones go into the export, and an unticked one stays where it is, dimmed. The order and the unticked
+   keys are kept per tour in this browser, and what lands later is slotted in where it belongs,
+   ticked (export.js, arrange; a list saved under the old × reads back with those unticked). In Export the voice plays only on Play and nothing
+   moves on by itself, so looking through the list stays quiet. The
+   code keeps `editing`, data-m="edit" and the stored 'edit' value; only the words changed. */
+var GRIP='<svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor"><circle cx="2" cy="2" r="1.3"/><circle cx="6" cy="2" r="1.3"/><circle cx="2" cy="7" r="1.3"/><circle cx="6" cy="7" r="1.3"/><circle cx="2" cy="12" r="1.3"/><circle cx="6" cy="12" r="1.3"/></svg>';
+var dragKey=null, routeDirty=false, dropBefore, exportText='', exportSeq=0;
+function escAttr(t){ return esc(t).replace(/"/g,'&quot;'); }
+function editKey(){ return 'cosight:edit:'+((doc&&doc.tourId)||'none'); }
+function editSaved(){ return load(editKey(),null); }
+function arrangement(){ return doc?EX.arrange(doc,editSaved()):{order:[],off:[]}; }
+function editSeq(){ return arrangement().order; }
+// `removed` was the list from before the tick boxes; once saved this way it is read no more.
+function saveList(order,off){ var s=editSaved()||{}; s.order=order; s.off=off; delete s.removed; store(editKey(),s); }
+function curKey(){ var e=curEntry(); return e?EX.keyOf(e):null; }
+function labelOf(e){ return e.ask?(e.title||e.ask):(e.title||('Stop '+e.n)); }
+
+function setMode(m,say){
+  var was=editing;
+  editing=m==='edit'; store('cosight:mode',editing?'edit':'review');
+  if(editing&&!was){ routeBeforeExport=routePinned; routePinned=true; drawRouteState(); }
+  else if(!editing&&was&&routeBeforeExport!==null){ routePinned=routeBeforeExport; routeBeforeExport=null; drawRouteState(); }
+  document.body.classList.toggle('editing',editing);
+  Array.prototype.forEach.call($('modesw').querySelectorAll('button'),function(b){ b.className=b.dataset.m===(editing?'edit':'review')?'on':''; });
+  if(editing){
+    // Nothing moves on by itself while the list is arranged; a voice already playing finishes.
+    waitingFor=0; heldNext=0; clearTimeout(advanceTimer); advanceTimer=null;
+  } else autoplay=true;
+  drawRoute(); drawButtons(); paintVoiceNote();
+  if(say!==false) flash(editing?'Export: tick the sections to export (Tick all, then untick, or tick just the ones you want); drag to reorder; Export… makes the Markdown.':'Review: Play or Next carries the tour on from here.');
+}
+Array.prototype.forEach.call($('modesw').querySelectorAll('button'),function(b){ b.onclick=function(){ setMode(b.dataset.m); }; });
+
+function itemHtml(k,e,nest,out){
+  var cls='eitem'+(e.ask?' ans':'')+(nest?' nest':'')+(out?' out':'')+(k===curKey()?' cur':'');
+  return '<div class="'+cls+'" draggable="true" data-k="'+escAttr(k)+'" title="'+escAttr(e.ask?('You asked: '+e.ask):labelOf(e))+'">'
+    +'<span class="grip">'+GRIP+'</span><input type="checkbox" class="tick"'+(out?'':' checked')+' title="'+(out?'Tick to put it in the export (Space)':'In the export. Untick to leave it out (Space)')+'">'
+    +'<span class="rn">'+(e.ask?'&#8627;':e.n)+'</span><span class="rt">'+esc(labelOf(e))+'</span></div>';
+}
+function drawEdit(){
+  var el=$('routeContents'), ar=arrangement(), ent=doc?EX.entriesOf(doc):{}, all=ar.order.length, off={};
+  ar.off.forEach(function(k){ off[k]=1; });
+  var n=all-ar.off.length;
+  var html='<div class="eh"><div class="rh">Export &middot; '+(all===n?plural(n,'section'):n+' of '+all+' ticked')+'</div>'
+    +'<button id="bExport" class="go"'+(n?'':' disabled')+' title="Make the Markdown from the ticked sections, in this order">Export&hellip;</button></div>';
+  if(all) html+='<div class="etick"><button id="bTickAll"'+(n===all?' disabled':'')+' title="Tick every section; then untick the ones to leave out">Tick all</button>'
+    +'<button id="bUntickAll"'+(n?'':' disabled')+' title="Untick every section; then tick the ones you want">Untick all</button></div>';
+  html+='<div id="elist">';
+  if(!all) html+='<div class="ehint">Nothing to export yet. Stops join this list as they land.</div>';
+  else if(!n) html+='<div class="ehint">Nothing is ticked. Tick the sections you want in the export.</div>';
+  ar.order.forEach(function(k,i){ html+=itemHtml(k,ent[k],EX.nested(ar.order,i,ent),!!off[k]); });
+  html+='</div>';
+  var coming=Math.max(0,planLen()-deliveredNs().length), asked=pendingAsks.length, bits=[];
+  if(coming) bits.push(coming+' stop'+(coming===1?'':'s'));
+  if(asked) bits.push(asked+' answer'+(asked===1?'':'s'));
+  if(bits.length) html+='<div class="ehint">Still coming: '+bits.join(' and ')+'. Each joins the list ticked, where it belongs.</div>';
+  html+='<div class="ehint">Only ticked sections are exported. Drag to reorder. An answer starts under the stop you asked it at.</div>';
+  el.innerHTML=html;
+  Array.prototype.forEach.call(el.querySelectorAll('.eitem'),function(d){
+    var k=d.dataset.k, box=d.querySelector('input.tick');
+    // The box toggles without showing the section, so ticking down the list does not jump the page.
+    box.onclick=function(ev){ ev.stopPropagation(); setTick(k,box.checked); };
+    d.onclick=function(){ show(EX.refOf(k),true); };
+    d.addEventListener('dragstart',function(ev){
+      dragKey=k; dropBefore=undefined;
+      try{ ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain',k); }catch(_){}
+      setTimeout(function(){ d.classList.add('dragging'); },0);
+    });
+    d.addEventListener('dragend',endListDrag);
+  });
+  if($('bExport')) $('bExport').onclick=openExport;
+  if($('bTickAll')) $('bTickAll').onclick=function(){ tickAll(true); };
+  if($('bUntickAll')) $('bUntickAll').onclick=function(){ tickAll(false); };
+  var c=el.querySelector('.eitem.cur'); if(c) c.scrollIntoView({block:'nearest'});
+}
+
+// Ticking never moves a section: only the `off` list changes.
+function setTick(k,on){
+  var ar=arrangement(), off=ar.off.filter(function(x){ return x!==k; });
+  if(!on) off.push(k);
+  saveList(ar.order,off); drawRoute(); drawButtons();
+}
+function toggleTick(k){ setTick(k,arrangement().off.indexOf(k)>=0); }
+function tickAll(on){
+  var ar=arrangement();
+  saveList(ar.order,on?[]:ar.order.slice()); drawRoute(); drawButtons();
+}
+function placeAt(k,before){
+  var ar=arrangement();
+  saveList(EX.moveKey(ar.order,k,before), ar.off);
+  drawRoute(); drawButtons();
+}
+function nudge(d){
+  var k=curKey(); if(!k) return;
+  var ar=arrangement(), i=ar.order.indexOf(k), j=i+d;
+  if(i<0||j<0||j>=ar.order.length) return;
+  var o=ar.order.slice(); o[i]=o[j]; o[j]=k;
+  saveList(o,ar.off); drawRoute(); drawButtons();
+}
+
+// Dragging: over a section, the top or bottom half says before or after it; over the list's
+// header, it goes first; anywhere else, last. A dragged section keeps its tick.
+function clearDropMarks(){
+  Array.prototype.forEach.call(document.querySelectorAll('.eitem.dropb,.eitem.dropa'),function(x){ x.classList.remove('dropb','dropa'); });
+}
+$('route').addEventListener('dragover',function(ev){
+  if(!editing||!dragKey) return;
+  ev.preventDefault();
+  try{ ev.dataTransfer.dropEffect='move'; }catch(_){}
+  clearDropMarks();
+  var item=ev.target.closest('#elist .eitem');
+  if(item){
+    var r=item.getBoundingClientRect();
+    if(ev.clientY<r.top+r.height/2){ dropBefore=item.dataset.k; item.classList.add('dropb'); }
+    else { var nx=item.nextElementSibling; dropBefore=nx&&nx.dataset.k?nx.dataset.k:null; item.classList.add('dropa'); }
+    return;
+  }
+  var items=$('elist')?$('elist').querySelectorAll('.eitem'):[];
+  if(ev.target.closest('.eh,.etick')&&items.length){ dropBefore=items[0].dataset.k; items[0].classList.add('dropb'); }
+  else { dropBefore=null; if(items.length) items[items.length-1].classList.add('dropa'); }
+});
+$('route').addEventListener('drop',function(ev){
+  if(!editing||!dragKey) return;
+  ev.preventDefault();
+  var k=dragKey;
+  if(dropBefore!==undefined&&dropBefore!==k) placeAt(k,dropBefore);
+  endListDrag();
+});
+function endListDrag(){
+  if(!dragKey) return;
+  dragKey=null; dropBefore=undefined; routeDirty=false;
+  drawRoute();
+}
+
+/* ---------- the export ---------- */
+function openExport(){
+  if(!doc) return;
+  var keys=EX.ticked(arrangement());
+  if(!keys.length){ flash('Nothing to export: no section is ticked.',false); return; }
+  $('xTitle').value=(editSaved()||{}).title||doc.question||'CoSight';
+  $('xMsg').textContent=''; $('xStats').textContent=''; $('xPrev').textContent='Gathering the files…';
+  $('exp').className='on';
+  // The whole file of every stop in the list, so each excerpt is quoted from the file itself.
+  var ent=EX.entriesOf(doc), want={}, seq=++exportSeq;
+  keys.forEach(function(k){ var e=ent[k]; if(e&&e.fileUrl&&fileCache[e.fileUrl]===undefined) want[e.fileUrl]=1; });
+  Promise.all(Object.keys(want).map(function(u){
+    return fetch(u,{cache:'no-store'}).then(function(r){ return r.ok?r.text():null; })
+      .then(function(t){ if(t!=null) fileCache[u]=t; }).catch(function(){});
+  })).then(function(){ if(seq===exportSeq) renderExport(); });
+  $('xDown').focus();
+}
+function plural(n,w){ return n+' '+w+(n===1?'':'s'); }
+function renderExport(){
+  if(!doc) return;
+  var md=EX.markdownOf(doc,EX.ticked(arrangement()),fileCache,{title:$('xTitle').value,date:EX.dateText(new Date())});
+  exportText=md.text; $('xPrev').textContent=md.text;
+  $('xStats').textContent=plural(md.sections,'section')+', '+plural(md.diagrams,'diagram')+', '+plural(md.excerpts,'code excerpt')
+    +(md.missing?'. '+plural(md.missing,'file')+' could not be loaded, so that code is not quoted':'');
+}
+function closeExport(){ $('exp').className=''; }
+function xMsg(t,warn){ $('xMsg').style.color=warn?'var(--warn)':''; $('xMsg').textContent=t; }
+$('xClose').onclick=closeExport;
+$('exp').addEventListener('pointerdown',function(e){ if(e.target===this) closeExport(); });
+$('xTitle').addEventListener('input',function(){ var s=editSaved()||{}; s.title=this.value; store(editKey(),s); renderExport(); });
+$('xDown').onclick=function(){
+  if(!exportText) return;
+  var name=EX.fileNameOf($('xTitle').value||(doc&&doc.question)||'',new Date());
+  var url=URL.createObjectURL(new Blob([exportText],{type:'text/markdown;charset=utf-8'})), a=document.createElement('a');
+  a.href=url; a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); },1000);
+  xMsg('Downloaded '+name+'. Saving a copy beside the tour…');
+  fetch('export',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:name,markdown:exportText})})
+    .then(function(r){ return r.ok?r.json():Promise.reject(r.status); })
+    .then(function(j){ xMsg('Downloaded '+name+'. A copy is at '+j.path+(j.winPath?'  ('+j.winPath+')':'')); })
+    .catch(function(st){ xMsg('Downloaded '+name+'. '+(st===404?'No copy was kept: the tour server is older than this page; /tour on in the terminal restarts it.':'No copy was kept: the tour server did not answer.'),true); });
+};
+$('xCopy').onclick=function(){
+  if(!exportText) return;
+  var fail=function(){ xMsg('The browser would not copy. Select the text above and copy it.',true); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(exportText).then(function(){ xMsg('Copied to the clipboard.'); },fail);
+  else fail();
+};
+
+document.addEventListener('keydown',function(e){
+  if(document.body.classList.contains('home-mode'))return;
+  if($('exp').classList.contains('on')){ if(e.key==='Escape') closeExport(); return; }
+  var act=document.activeElement, tag=act&&act.tagName;
+  // Typing goes to the box being typed in; a tick box keeps no hold on the keys.
+  if((tag==='INPUT'&&act.type!=='checkbox')||tag==='TEXTAREA') return;
+  if(editing&&e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==='ArrowUp'||e.key==='ArrowDown')){ e.preventDefault(); nudge(e.key==='ArrowUp'?-1:1); return; }
+  if(e.ctrlKey||e.metaKey||e.altKey) return;   // leave Ctrl+R, Ctrl+L, Ctrl+0 to the browser
+  if(e.key==='e'||e.key==='E') setMode(editing?'review':'edit');
+  if(e.key==='ArrowLeft') goPrev();
+  if(e.key==='ArrowRight') goNext();
+  if(e.key==='l'||e.key==='L') $('bLive').click();
+  if(e.key==='r'||e.key==='R') $('bAudio').click();
+  if(e.key==='m'||e.key==='M') setMuted(!muted);
+  if(e.key==='[') setRate(rate-0.1);
+  if(e.key===']') setRate(rate+0.1);
+  if(e.key==='h'||e.key==='H') $('bHold').click();
+  // In Export, Space ticks or unticks the section on screen; Play stays on its button.
+  if(e.key===' '){ e.preventDefault(); if(editing){ var k=curKey(); if(k) toggleTick(k); } else $('bPlay').click(); }
+  if(e.key==='?') $('bHelp').click();
+  if(e.key==='+'||e.key==='=') zoomAt(wrap.clientWidth/2,wrap.clientHeight/2,1.25);
+  if(e.key==='-') zoomAt(wrap.clientWidth/2,wrap.clientHeight/2,1/1.25);
+  if(e.key==='0') handFit();
+  if(e.key==='o'||e.key==='O') flipView();
+  if(e.key==='Escape'){ pinned=null; clearBrush(); hidePop(); $('help').classList.remove('on'); $('settings').classList.remove('on'); }
+});
+
+setLayout('split',false);
+setMode(load('cosight:mode','review'),false);
+drawHeader(); drawButtons(); drawStatus();
+</script>
+<script src="library-ui.js"></script>
+<script src="splash.js"></script>
+<script src="speech.js"></script>
+<script src="home.js"></script>
+<script src="document-ui.js"></script>
+<script src="workspace-plugins-ui.js"></script>
+<script src="analysis-ui.js"></script>
+<script src="workspace.js"></script>
+<script src="question-history-ui.js"></script>
+<script>document.addEventListener('visibilitychange',function(){if(document.hidden)pauseNow();});window.addEventListener('blur',function(){pauseNow();});</script>
+<style>
+#library .card{width:min(780px,94vw);padding:24px 30px}#library .setup-brand h3{display:none}#library .setup-brand{margin-bottom:16px}#library .settings-section{padding:20px;border:1px solid var(--line);border-radius:10px;margin:16px 0}#library .settings-section-title{display:flex;align-items:center;gap:12px}#library .settings-section-title h3{margin:0}#library .settings-section-title span{font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:20px;padding:2px 8px}#library #libAgentStatus{font-size:12px;color:var(--dim)}#library .settings-project{overflow-wrap:anywhere;color:var(--dim);font-size:12px}#library .agent-advanced{margin-top:18px}#library #libDefaultInstructions{font-size:12px;background:none;border:0;color:var(--accent);padding:4px 0}#library #libPresets{margin-top:6px}#libGuidanceDialog{color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:12px;width:min(620px,90vw);max-height:75vh;padding:20px}#libGuidanceDialog::backdrop{background:#080a0e99}#libGuidanceDialog header{display:flex;align-items:center;justify-content:space-between}#libGuidanceDialog h3{margin:0;font-size:16px}#libGuidanceDialog p{font-size:12px;color:var(--dim)}#libGuidanceDialog textarea{box-sizing:border-box;width:100%;height:35vh;resize:vertical;background:var(--bg);color:var(--ink);border:1px solid var(--line);padding:10px;font:13px/1.6 inherit}#libGuidanceDialog footer{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}#libGuidanceDialog footer button:first-child{margin-right:auto}#libGuidanceDialog [role=status]{min-height:18px}
+</style>
+</body>
+</html>

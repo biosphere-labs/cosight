@@ -1,0 +1,6 @@
+{
+  "name": "cosight",
+  "version": "0.0.1",
+  "description": "Ask about code and Claude gives you a guided tour on a local web page: a planned route of stops, each the whole file scrolled to the lines under discussion beside a flow diagram, read aloud by the page as each stop arrives",
+  "types": "./types/index.d.ts"
+}

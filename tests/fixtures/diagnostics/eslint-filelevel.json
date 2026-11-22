@@ -1,0 +1,21 @@
+[
+  {
+    "filePath": "/tmp/cosight-diagnostic-producer/src/ignored.txt",
+    "messages": [
+      {
+        "ruleId": null,
+        "fatal": false,
+        "severity": 1,
+        "message": "File ignored because no matching configuration was supplied.",
+        "nodeType": null
+      }
+    ],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "warningCount": 1,
+    "fatalErrorCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  }
+]

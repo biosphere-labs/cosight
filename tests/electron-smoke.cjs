@@ -1,0 +1,64 @@
+const {_electron:electron}=require('playwright');
+const fs=require('node:fs'); const path=require('node:path'); const crypto=require('node:crypto');
+(async()=>{
+ const root=path.resolve('temp/smoke-data');fs.rmSync(root,{recursive:true,force:true}); fs.mkdirSync(path.join(root,'audio'),{recursive:true}); fs.mkdirSync(path.join(root,'files'),{recursive:true});
+ const projectDir=path.join(root,'project-a');fs.mkdirSync(projectDir,{recursive:true});fs.writeFileSync(path.join(projectDir,'welcome.js'),'function welcome() { return "hello"; }');
+ const say='Welcome to CoSight.';const hash=crypto.createHash('sha1').update(say).digest('hex');
+ // A WAV fixture works in Chromium irrespective of its URL extension.
+ const samples=24000, wav=Buffer.alloc(44+samples*2);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(24000,24);wav.writeUInt32LE(48000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(samples*2,40);for(let i=0;i<samples;i++)wav.writeInt16LE(Math.sin(i*2*Math.PI*440/24000)*1000,44+i*2);
+ fs.writeFileSync(path.join(root,'audio',hash+'.mp3'),wav);fs.writeFileSync(path.join(root,'files','fixture.txt'),'function welcome() { return "hello"; }');
+ fs.writeFileSync(path.join(root,'tour.json'),JSON.stringify({v:1,tourId:'t-1793400000000',project:projectDir,question:'How does welcome work?',phase:'done',plan:[{n:1,title:'Welcome'}],stops:[{id:'s1',n:1,title:'Welcome',say,file:'welcome.js',fileUrl:'files/fixture.txt',fileLines:1,start:1,end:1,highlight:[1],svg:'flowchart LR\n  a["Welcome"] --> b["Hello"]'}],asides:[]}));
+ const app=await electron.launch({...(process.env.COSIGHT_TEST_APP?{executablePath:process.env.COSIGHT_TEST_APP,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']}:{args:['.','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']}),env:{...process.env,COSIGHT_DATA_DIR:root,COSIGHT_USER_DATA_DIR:path.join(root,'electron-profile'),COSIGHT_PORT:'18199',KOKORO_ENSURE:''}});
+ try{
+  const page=await app.firstWindow(); await page.waitForURL('http://127.0.0.1:18199/**'); await page.waitForLoadState('load'); await page.addInitScript(()=>localStorage.setItem('cosight:voiceEngine','legacy')); await page.reload(); const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.waitForFunction(()=>window.doc&&doc.stops.length===1);
+  await page.locator('#homeRecent button').filter({hasText:projectDir}).click();
+  if(!await page.locator('#library').isVisible())await page.locator('#homeSettings').click();
+  await page.waitForFunction(()=>!document.getElementById('libInstructions').disabled); await page.locator('#libInstructions').fill('Explain the architecture and trace a request.'); await page.locator('#libName').fill('Architecture');await page.locator('#libSave').click();await page.waitForFunction(()=>document.getElementById('libMessage').textContent.startsWith('Saved for')).catch(async error=>{console.error('Settings diagnostic:',await page.locator('#libMessage').innerText(),errors);throw error;});
+  await page.locator('#libPresetSave').click();await page.waitForFunction(()=>document.getElementById('libMessage').textContent==='Reusable preset saved.');
+  await page.locator('#libClose').click();await page.locator('#homeTours button').first().click();await page.waitForFunction(()=>window.reviewingArchive===true);
+  await page.locator('#bPlay').click();await page.waitForFunction(()=>document.getElementById('au').currentTime>0).catch(async error=>{console.error('Playback diagnostic:',await page.evaluate(()=>({home:document.body.className,paused,muted,cur,entry:curEntry(),speaking,src:au.src,time:au.currentTime,status:narrationStatus,voice:CoSightSpeech.engine()})));throw error;});
+  console.log('CONFIRMED: saved-tour audio plays without a mute toggle');
+  await page.locator('#bReturnLive').click();await page.waitForFunction(()=>window.reviewingArchive===false);
+  if(!await page.locator('#bLibrary').isVisible())await page.locator('#workspaceToggle').click();await page.locator('#bLibrary').click();await page.locator('#libRun').click();await page.waitForFunction(()=>document.getElementById('libMessage').textContent.startsWith('Tour requested'));
+  const requests=fs.readFileSync(path.join(root,'requests.jsonl'),'utf8');if(!requests.includes('"kind":"tour"'))throw Error('No new-tour request');
+  if(!await page.locator('#bLibrary').isVisible())await page.locator('#workspaceToggle').click();await page.locator('#bLibrary').click();
+  await page.waitForFunction(()=>!document.getElementById('libProvider').disabled);
+  await page.locator('#libProvider').selectOption('custom');
+  await page.locator('.agent-advanced').evaluate(e=>e.open=true);await page.locator('#libAgentCommand').fill(process.execPath);
+  await page.locator('#libAgentArgs').fill(JSON.stringify([path.resolve('tests/fixture-agent.mjs'),'{mcpConfig}']));
+  await page.locator('#libSerena').uncheck();
+  await page.locator('#libRun').click();
+  await page.waitForFunction(()=>window.doc&&doc.question==='A standalone agent tour'&&doc.phase==='done');
+  const runDoc=JSON.parse(fs.readFileSync(path.join(root,'tour.json'),'utf8'));
+  if(runDoc.agentRun.error||runDoc.stops.length!==1)throw Error('Custom agent did not deliver its tour');
+  console.log('CONFIRMED: configured standalone CLI delivered a tour through MCP');
+  await page.reload();
+  await page.waitForFunction(()=>window.doc&&doc.phase==='done'&&document.getElementById('splash').hidden);
+  console.log('CONFIRMED: first-run setup stays completed after reload');
+  await page.locator('#homeRecent button').filter({hasText:projectDir}).click();
+  await page.locator('#homeResume').click();
+  const completed=JSON.parse(fs.readFileSync(path.join(root,'tour.json'),'utf8'));
+  fs.writeFileSync(path.join(root,'tour.json'),JSON.stringify({...completed,v:completed.v+1,tourId:'t-loading-preview',phase:'reading',status:'Tracing symbols and execution paths…',stops:[],asides:[]}));
+  await page.locator('#splash.loading').waitFor();
+  await page.screenshot({path:'temp/splash-loading.png'});
+  fs.writeFileSync(path.join(root,'tour.json'),JSON.stringify({...completed,v:completed.v+2}));
+  await page.waitForFunction(()=>document.getElementById('splash').hidden);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const animations=await page.evaluate(async()=>{
+    const svg=await (await fetch('icons/atlas-loading.svg')).text();const host=document.createElement('div');host.innerHTML=svg;document.body.appendChild(host);
+    const names=Array.from(host.querySelectorAll('.atlas-node,.atlas-lens')).map(n=>getComputedStyle(n).animationName);host.remove();return names;
+  });
+  if(animations.some(name=>name!=='none'))throw Error('Reduced motion was ignored');
+  const favicon=await page.locator('link[rel=icon]').getAttribute('href');const response=await page.request.get(new URL(favicon,page.url()).href);if(!response.ok())throw Error('Favicon unavailable');
+  console.log('CONFIRMED: loading splash clears, favicon loads, reduced motion disables animation');
+  const runtime=await page.evaluate(async()=>{const sdk=await import('./moonshine/index.js');const module=await sdk.loadMoonshineModule();return {isolated:crossOriginIsolated,transcriber:typeof module.Transcriber==='function'};});
+  if(!runtime.isolated||!runtime.transcriber)throw Error('Packaged Moonshine WASM runtime could not initialize');
+  console.log('CONFIRMED: packaged Moonshine WASM initializes with browser isolation');
+  const micPermission=await page.evaluate(async()=>{const stream=await navigator.mediaDevices.getUserMedia({audio:true});const count=stream.getAudioTracks().length;stream.getTracks().forEach(track=>track.stop());return count;});
+  if(micPermission<1)throw Error('Electron microphone permission handler did not allow audio');
+  console.log('CONFIRMED: Electron permits local audio capture through its microphone handler');
+  await page.screenshot({path:'temp/electron-smoke.png'});
+  if(errors.length)throw Error(errors.join('\n')); console.log('CONFIRMED: settings save, reusable preset, history replay, return to live, new-tour request');
+ }finally{await app.close(); try{const info=await (await fetch('http://127.0.0.1:18199/whoami')).json();process.kill(info.pid);}catch{} }
+})().catch(e=>{console.error(e);process.exitCode=1;});

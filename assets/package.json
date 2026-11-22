@@ -1,0 +1,4 @@
+{
+  "//": "tour-server.js is ESM; Node before 22 does not detect that without this",
+  "type": "module"
+}

@@ -1,0 +1,10 @@
+#askfield{position:relative;flex:1;min-width:0;display:flex}
+#askfield #askin{width:100%;padding-right:42px}
+#askrow #bMic{position:absolute;right:3px;top:2px;width:33px;height:26px;padding:3px 7px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:#8fa9ce}
+#askrow #bMic:hover{color:#bcddff;background:#263852}
+#askrow #bMic.recording{background:#28496b;color:#9de8db}
+#micStatus{font-size:12px;color:#9db9df;padding:0 16px 7px;overflow-wrap:anywhere}
+#micStatus:empty{display:none}
+.speech-setting{display:flex;align-items:center;gap:16px;justify-content:space-between;margin:14px 0;font-size:13px}
+.speech-setting select{background:#182437;color:#e5efff;border:1px solid #35465f;padding:7px;border-radius:5px;max-width:280px}
+#bVoicePreview{margin:14px 0}
