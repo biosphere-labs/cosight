@@ -6,6 +6,8 @@ An agent can write a change faster than you can understand it. CoSight gives you
 
 Open a project folder and ask a question, such as “What happens between receiving a request and saving it?” Each stop in the tour pairs an explanation with the relevant code or diagram. Ask a follow-up at the line that puzzles you. The answer stays with that stop.
 
+![CoSight tour of the Hermes Linear bridge, with three stops on the left, a diagram in the centre, and the relevant lines of AGENTS.md highlighted on the right.](docs/images/code-tour.png)
+
 You can read at your own pace or press **Play** for narration. **Previous questions** takes you back to a saved answer. If someone has already written a handover, choose **Open document** to follow the Markdown alongside the code it describes.
 
 ## Turn a tour into documentation
