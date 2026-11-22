@@ -1,6 +1,6 @@
 {
   "name": "cosight",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Stay connected to codebases built with software factories through guided exploration.",
   "main": "electron/main.cjs",

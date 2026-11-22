@@ -1799,24 +1799,41 @@ function flash(msg,good){
   clearTimeout(flash.t); flash.t=setTimeout(function(){e.className='';},4000);
 }
 function post(kind,text){
-  if(reviewingArchive) return Promise.reject(new Error('Return to the live tour to ask the connected agent.'));
+  if(reviewingArchive && kind!=='question') return Promise.reject(new Error('Return to the live tour to ask the connected agent.'));
   var e=curEntry()||{};
   return fetch('request',{method:'POST',headers:{'content-type':'application/json'},
-    body:JSON.stringify({kind:kind,text:text||'',step:curN()||null,heading:e.title||'',file:e.file||''})})
+    body:JSON.stringify({kind:kind,project:doc?.project,tourId:doc?.tourId,archived:reviewingArchive,text:text||'',step:curN()||null,heading:e.title||'',file:e.file||''})})
     .then(async function(r){ var result=await r.json(); if(!r.ok) throw new Error(result.error||'Request failed'); return result; });
 }
-function ask(t){
-  if(window.CoSightSpeech?.recording())return;
-  t=(t||'').trim(); if(!t) return;
-  var step=curN();
-  post('question',t).then(function(){
-    pendingAsks.push({text:t,step:step,at:Date.now()});
+var sendingQuestion=false;
+async function ask(t,field){
+  if(sendingQuestion||window.CoSightSpeech?.recording())return;
+  t=(t||'').trim(); if(!t)return;
+  const project=doc.project, tourId=doc.tourId, step=curN();
+  sendingQuestion=true;
+  try{
+    await post('question',t);
+    if(doc?.project!==project || doc?.tourId!==tourId || window.CoSightHome?.visible())return;
+    if(field && field.value.trim()===t)field.value='';
+    if(!doc.asides.some(a=>a.ask===t && a.from===step))pendingAsks.push({text:t,step,at:Date.now()});
     drawRoute();
     flash('Question sent. The answer lands here, under step '+(step||'1')+'.');
-  }).catch(function(error){ flash(reviewingArchive?'Return to the live tour to ask the connected agent.':(error.message||'Could not reach the tour server.'),false); });
+    if(reviewingArchive){
+      if(liveDoc?.project===project && liveDoc?.tourId===tourId){
+        reviewingArchive=false;$('bReturnLive').hidden=true;apply(liveDoc,true);
+      }else window.CoSightLibrary.watchAnswer(project,tourId);
+    }
+  }catch(error){flash(error.message||'Could not reach the tour server.',false);}
+  finally{sendingQuestion=false;}
 }
-$('bSend').onclick=function(){ if(window.CoSightSpeech?.recording())return; var i=$('askin');if(window.CoSightHome?.visible()){window.CoSightHome.ask(i.value);return;} ask(i.value); i.value=''; };
-$('askin').addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();if(window.CoSightHome?.visible()){window.CoSightHome.ask(this.value);return;} ask(this.value); this.value=''; } if(e.key==='Escape') this.blur(); });
+function sendQuestion(){
+  if(window.CoSightSpeech?.recording())return;
+  const field=$('askin');
+  if(window.CoSightHome?.visible())window.CoSightHome.ask(field.value);
+  else ask(field.value,field);
+}
+$('bSend').onclick=sendQuestion;
+$('askin').addEventListener('keydown',function(e){if(e.key==='Enter' && !e.isComposing){e.preventDefault();sendQuestion();}if(e.key==='Escape')this.blur();});
 $('askin').addEventListener('blur',function(){ setTimeout(releaseHold,0); });
 $('askin').addEventListener('input',function(){ if(!this.value.trim() && document.activeElement!==this) releaseHold(); });
 $('bSlower').onclick=function(){ setRate(rate-0.1); };

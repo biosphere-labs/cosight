@@ -31,6 +31,8 @@ jobs:
       - run: npm run test:pure
       - name: Test application
         run: TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)" npm test
+      - name: Exercise saved questions in Electron
+        run: node tests/question-history-electron.cjs
       - name: Build macOS disk image
         run: npx --no-install electron-builder --mac dmg --${{ matrix.arch }} --publish never
         env:

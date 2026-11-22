@@ -49,17 +49,17 @@ export class AgentRunner {
     run.controller?.abort();
     clearTimeout(run.timer);
     error=providerError(run.runDir)||error;
-    let doc=readTour(this.root);
+    let doc=readTour(this.root,run.savedTour);
     if(doc?.tourId===run.tourId){
       const trace=fs.existsSync(run.trace)?fs.readFileSync(run.trace,'utf8'):'';
       const used=trace.split('\n').filter(Boolean).map(line=>{try{return JSON.parse(line);}catch{return {};}}).filter(e=>e.type==='serena.tool'&&!e.result?.isError);
       if(!error&&run.serena&&!trace.includes('\"type\":\"serena.ready\"')) error='Code navigation did not initialize. See diagnostic information.';
       const explored=used.some(e=>['get_symbols_overview','find_symbol','find_referencing_symbols'].includes(e.name));
       if(!error&&run.kind==='question'&&doc.asides.length<=run.asidesBefore)error='Agent exited without delivering an answer to the question.';
-      if(!error&&(!doc.stops.length||doc.stops.length<doc.plan.length))error='Agent exited before delivering the planned tour. See the run trace.';
+      if(!error&&run.kind!=='question'&&(!doc.stops.length||doc.stops.length<doc.plan.length))error='Agent exited before delivering the planned tour. See the run trace.';
       doc.phase='done';doc.status=error||'Tour ready';doc.agentRun={provider:run.provider,runDir:run.runDir,serenaEnabled:run.serena,serenaUsed:explored,serenaCalls:used.length,error:error||''};
       if(!error&&run.serena&&!explored)doc.status='Tour ready; symbol navigation was not verified';
-      doc.v++;writeTour(this.root,doc);
+      doc.v++;writeTour(this.root,doc,run.savedTour);
     }
     this.last={running:false,project:run.project,provider:run.provider,runDir:run.runDir,error:error||''};
     fs.writeFileSync(path.join(run.runDir,'result.json'),JSON.stringify(this.last,null,2));
@@ -70,11 +70,16 @@ export class AgentRunner {
     this.starting=true;this.cancelledStart=false;this.startController=new AbortController();
     try{return await this.startRun(input);}finally{this.starting=false;this.startController=null;this.startingProject=null;this.startingPlugins=[];}
   }
-  async startRun({project,text,kind='tour',step=0,changeContext,documentContext,insightContext}){
+  async startRun({project,text,kind='tour',step=0,tourId,archived=false,changeContext,documentContext,insightContext}){
     if(this.active)throw Error('An agent is already running. Stop it before starting another tour.');
     project=fs.realpathSync(project);
     if(!fs.statSync(project).isDirectory())throw Error('Choose a project directory');
-    const previous=readTour(this.root);
+    const live=readTour(this.root);
+    const sameTour=live?.project===project && live?.tourId===tourId;
+    const savedTour=kind==='question' && archived && tourId && !sameTour ? {project,tourId} : undefined;
+    const previous=savedTour ? readTour(this.root,savedTour) : live;
+    if(kind==='question' && tourId && previous?.tourId!==tourId)throw Error('This tour is no longer available. Reopen it from Saved tours.');
+    if(kind==='question' && tourId && !previous?.stops?.some(stop=>stop.n===step))throw Error('This step is no longer available. Reopen the tour and select a step.');
     if(kind==='question'&&previous?.project!==project)throw Error('The question belongs to another project');
     if(kind==='question'){changeContext=previous.changeContext;documentContext=previous.documentContext;insightContext=previous.insightContext;}
     if(documentContext){const selected=readDocument(project,documentContext.path,{expectedHash:documentContext.hash});documentContext={path:selected.path,hash:selected.hash,title:selected.title};}
@@ -112,7 +117,7 @@ export class AgentRunner {
     if(documentContext)doc.documentContext=documentContext;
     if(changeContext){doc.changeContext=changeContext;doc.sourceRoots=sourceRoots;doc.source={project,repository:changeContext.comparison.repository,before:changeContext.snapshots.before.revision,after:changeContext.snapshots.after.revision};}
     doc.phase=kind==='question'?'answering':'reading';doc.status=changeContext?`${agent.provider} is exploring pinned source`:`${agent.provider} is exploring the project`;doc.v++;
-    const descriptor={root:this.root,project,defaultInstructionsVersion:settings.defaultInstructionsVersion,guidanceHash:settings.guidanceHash,effectiveInstructions,sourceRoots,changeContext,documentContext,insightContext,plugins,pluginBridge,tourId:doc.tourId,trace,serena,kind,requestedText:text,experimentalPlugins:features.analysisPlugins,question:kind==='question'?text:'',from:step||1};
+    const descriptor={root:this.root,savedTour,project,defaultInstructionsVersion:settings.defaultInstructionsVersion,guidanceHash:settings.guidanceHash,effectiveInstructions,sourceRoots,changeContext,documentContext,insightContext,plugins,pluginBridge,tourId:doc.tourId,trace,serena,kind,requestedText:text,experimentalPlugins:features.analysisPlugins,question:kind==='question'?text:'',from:step||1};
     const descriptorFile=path.join(runDir,'run.json');fs.writeFileSync(descriptorFile,JSON.stringify(descriptor,null,2));
     const env=cleanEnvironment();
     // Electron's executable can run a plain Node subprocess in a packaged app too.
@@ -144,12 +149,12 @@ export class AgentRunner {
     fs.writeFileSync(path.join(runDir,'prompt.txt'),agentPrompt);
     const spec=invocation({...agent,command},{prompt:agentPrompt,project:sourceProject,mcpConfig,runDir,model:agent.model},servers);
     fs.writeFileSync(path.join(runDir,'invocation.json'),JSON.stringify({command:spec.command,args:spec.args,project,sourceProject,provider:agent.provider},null,2));
-    writeTour(this.root,doc);
+    writeTour(this.root,doc,savedTour);
     const stdout=fs.openSync(path.join(runDir,'stdout.jsonl'),'w'),stderr=fs.openSync(path.join(runDir,'stderr.log'),'w');
     let child;
     try{child=spawn(binary(spec.command),spec.args,{cwd:changeContext?sourceProject:agent.provider==='antigravity'?runDir:project,env,detached:process.platform!=='win32',stdio:['ignore',stdout,stderr]});}
     finally{fs.closeSync(stdout);fs.closeSync(stderr);}
-    const run={child,project,sourceProject,plugins,controller:this.startController||new AbortController(),tourId:doc.tourId,kind,asidesBefore:doc.asides.length,provider:agent.provider,runDir,trace,serena:serena.enabled};this.active=run;
+    const run={child,savedTour,project,sourceProject,plugins,controller:this.startController||new AbortController(),tourId:doc.tourId,kind,asidesBefore:doc.asides.length,provider:agent.provider,runDir,trace,serena:serena.enabled};this.active=run;
     run.timer=setTimeout(()=>{this.cancel();},15*60*1000);run.timer.unref();
     child.on('error',e=>this.finish(run,`Could not start ${agent.provider}: ${e.message}`));
     child.on('exit',(code,signal)=>this.finish(run,code===0&&!signal?null:`Agent ended (${signal||code}). See ${path.join(runDir,'stderr.log')}`));

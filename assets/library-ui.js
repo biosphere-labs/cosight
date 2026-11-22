@@ -37,19 +37,45 @@
     $('libProvider').value=agent.provider;
   }
 
+  let archiveWatch=0;
+  function applyArchive(shown){
+    const live=liveDoc;
+    reviewingArchive=false;
+    try{apply(shown,true);}finally{liveDoc=live;reviewingArchive=true;}
+  }
+  async function watchAnswer(project,tourId){
+    const watch=++archiveWatch;
+    const stillOpen=()=>watch===archiveWatch && reviewingArchive && doc?.project===project && doc?.tourId===tourId;
+    while(stillOpen()){
+      try{
+        const response=await fetch('saved-tour?'+new URLSearchParams({project,tourId}),{cache:'no-store'});
+        const next=await response.json();
+        if(!stillOpen())return;
+        if(!response.ok)throw Error(next.error||'Could not load the saved answer');
+        if(next.doc.v!==doc.v)applyArchive(next.doc);
+        if(!next.active){
+          if(next.doc.agentRun?.error){pendingAsks=[];drawRoute();flash(next.doc.agentRun.error,false);}
+          return;
+        }
+      }catch(error){if(stillOpen())flash(error.message,false);return;}
+      await new Promise(resolve=>setTimeout(resolve,600));
+    }
+  }
   async function openTour(t,entry){
+    ++archiveWatch;
     var shown=structuredClone(t);shown.tts={state:'off'};
     // Archive navigation never waits for a serial audio probe for every stop.
     await Promise.all([].concat(shown.stops||[],shown.asides||[]).map(async function(s){
       var hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-1',new TextEncoder().encode(CoSightNarrationText(s.say||''))))).map(function(v){return v.toString(16).padStart(2,'0');}).join('');
       s.audio='audio/'+hash+'.mp3';
     }));
-    var live=liveDoc;reviewingArchive=false;paused=true;autoplay=false;
-    window.CoSightHome?.hide();apply(shown,true);liveDoc=live;reviewingArchive=true;
+    paused=true;autoplay=false;
+    window.CoSightHome?.hide();applyArchive(shown);
     if(entry)show(entry,false);
     $('bReturnLive').hidden=false;$('library').hidden=true;window.CoSightSplash?.refresh();
+    if(shown.phase==='answering')watchAnswer(shown.project,shown.tourId);
   }
-  window.CoSightLibrary={openTour};
+  window.CoSightLibrary={openTour,watchAnswer};
   async function api(url, value){
     var job=window.CoSightSplash?window.CoSightSplash.begin(value===undefined?'Loading your workspace…':'Saving your choices…'):null;
     try {

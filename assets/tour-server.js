@@ -61,7 +61,7 @@ const EXPORT_DIR = path.join(root, 'exports');
 /** Rendered Mermaid diagrams, keyed by the hash of their source, so a reload never redraws. */
 const SVG_DIR = path.join(root, 'svg');
 /** Raised when the page needs an endpoint an older server lacks; start-canvas.sh compares it. */
-const API = 17;
+const API = 18;
 const store = library(root);
 const runner = new AgentRunner(root);
 const pluginHost = features.analysisPlugins?await createPluginHost({root,store,runner}):null;
@@ -382,6 +382,16 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { root, platform: process.platform, pid: process.pid, port, api: API, page: pageHash() });
   }
 
+  if (urlPath === '/saved-tour' && req.method === 'GET') {
+    const params=new URL(req.url,'http://localhost').searchParams;
+    const project=params.get('project'), tourId=params.get('tourId');
+    if(!project || !tourId)return json(res,400,{error:'A project and a tour are required'});
+    const live=tour.project===project && tour.tourId===tourId;
+    const doc=live ? served() : store.savedTour(project,tourId);
+    if(!doc)return json(res,404,{error:'This saved tour is no longer available'});
+    const active=runner.active;
+    return json(res,200,{doc,active:active?.tourId===tourId && active.project===project});
+  }
   if (urlPath === '/tour') return json(res, 200, served());
   if(urlPath==='/features')return json(res,200,features);
   if((urlPath==='/documents'||urlPath==='/documents/read')&&req.method==='GET'){
@@ -552,14 +562,18 @@ const server = http.createServer(async (req, res) => {
     if (!obj || typeof obj !== 'object' || !/^(question|hold|tour)$/.test(String(obj.kind))) {
       return json(res, 400, { ok: false, error: 'kind must be question, tour or hold' });
     }
-    if (obj.project && obj.project !== tour.project) return json(res, 409, { error: 'The connected agent is working in another project' });
+    const archived=obj.kind==='question' && obj.archived===true;
+    if(archived && (typeof obj.project!=='string'||!obj.project||typeof obj.tourId!=='string'||!obj.tourId))return json(res,400,{error:'A saved tour and project are required'});
+    if (!archived && obj.project && obj.project !== tour.project) return json(res, 409, { error: 'The connected agent is working in another project' });
     if (obj.kind === 'tour' && !String(obj.text || '').trim()) return json(res, 400, { error: 'Tour instructions required' });
-    obj.project = tour.project;
-    const provider=store.settings(tour.project||'').agent.provider;
+    obj.project = archived ? obj.project : tour.project;
+    const provider=store.settings(obj.project||'').agent.provider;
+    if(provider==='external' && obj.kind==='question' && obj.tourId && (obj.project!==tour.project || obj.tourId!==tour.tourId))
+      return json(res,409,{error:'The external agent is connected to another tour. Reopen this tour in that agent or choose a local CLI in Agents & settings.'});
     if(provider!=='external') {
       try {
         if(obj.kind==='hold'){runner.cancel();scheduleReload();return json(res,200,{ok:true});}
-        const result=await runner.start({project:tour.project,text:String(obj.text||''),kind:obj.kind,step:obj.step});
+        const result=await runner.start({project:obj.project,text:String(obj.text||''),kind:obj.kind,step:obj.step,tourId:obj.tourId,archived});
         scheduleReload();return json(res,200,result);
       } catch(e){return json(res,409,{error:e.message});}
     }

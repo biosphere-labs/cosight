@@ -14,6 +14,8 @@ Choose a project folder to see its overview and saved tours. Ask a question by t
 
 Select **Previous questions** beside the question field on the project home or in a tour. Search the project’s questions, including follow-ups. **View answer** opens the saved tour at the answer. **Use question** puts the wording in the question field for editing or sending.
 
+You can ask a follow-up directly from a saved tour with a configured CLI agent. The answer stays with the original step. If the question cannot be sent, the text stays in the question field.
+
 Tours and instructions are saved per project. Reusable instruction presets help you repeat a useful kind of exploration across different codebases. Agent settings are shared, so switching projects does not mean setting everything up again.
 
 Open the route from the upper-left toolbar and close it with the × in its header. Full Markdown files appear as formatted pages, scrolled to the passage for the current step.

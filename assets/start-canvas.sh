@@ -29,7 +29,7 @@ up() { curl -fsS -m 2 -o /dev/null "$URL"; }
 
 # The API version the page needs (tour-server.js's API). 2 added POST /export
 # for Export mode, Oct 14, 2026; 3 added the svg/ diagram cache, Oct 18, 2026.
-API_NEEDED=17
+API_NEEDED=18
 
 if up; then
   # An older server lacks an endpoint the page calls: one from before the

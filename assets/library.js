@@ -13,6 +13,7 @@ const write = (file, value) => {
   fs.renameSync(file + '.part', file);
 };
 export function library(root) {
+  const snapshotFile = (project, tourId) => path.join(root, 'tours', 'snapshot-'+projectKey(project+'\n'+tourId)+'.json');
   const settingsFile = project => path.join(root, 'projects', projectKey(project), 'settings.json');
   return {
     guidance() {
@@ -81,8 +82,12 @@ export function library(root) {
     },
     snapshot(doc) {
       if (!doc?.tourId || !doc.project || !doc.stops?.length) return;
-      const id = crypto.createHash('sha256').update(doc.project + '\n' + doc.tourId).digest('hex');
-      write(path.join(root, 'tours', `snapshot-${id}.json`), doc);
+      write(snapshotFile(doc.project, doc.tourId), doc);
+    },
+    savedTour(project, tourId) {
+      const saved = read(snapshotFile(project, tourId), null);
+      if (saved?.project === project && saved.tourId === tourId) return saved;
+      return this.history(project).find(doc => doc.tourId === tourId) || null;
     },
     history(project) {
       const dir = path.join(root, 'tours');

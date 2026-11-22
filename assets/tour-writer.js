@@ -5,8 +5,11 @@ import crypto from 'node:crypto';
 import {library} from './library.js';
 import {execFileSync} from 'node:child_process';
 import {readDocument,readDocumentRange,documentReferenceCandidate} from './document-reader.js';
-export function readTour(root){try{return JSON.parse(fs.readFileSync(path.join(root,'tour.json'),'utf8'));}catch{return null;}}
-export function writeTour(root,doc){
+export function readTour(root, saved){
+  if(saved)return library(root).savedTour(saved.project,saved.tourId);
+  try{return JSON.parse(fs.readFileSync(path.join(root,'tour.json'),'utf8'));}catch{return null;}}
+export function writeTour(root,doc,saved){
+  if(saved){library(root).snapshot(doc);return;}
   library(root).snapshot(readTour(root)); library(root).snapshot(doc);
   const file=path.join(root,'tour.json');fs.mkdirSync(root,{recursive:true});fs.writeFileSync(file+'.part',JSON.stringify(doc));fs.renameSync(file+'.part',file);
 }
@@ -53,8 +56,8 @@ export function readSource(config,input){
 }
 export function tourTools(config){
   const {root,project,tourId,kind,question,from}=config;
-  function current(){const doc=readTour(root);if(!doc||doc.project!==project||doc.tourId!==tourId)throw Error('This run is no longer the active tour');return doc;}
-  function save(doc){doc.v++;writeTour(root,doc);}
+  function current(){const doc=readTour(root,config.savedTour);if(!doc||doc.project!==project||doc.tourId!==tourId)throw Error('This run is no longer the active tour');return doc;}
+  function save(doc){doc.v++;writeTour(root,doc,config.savedTour);}
   return {
     insight_context(){if(!config.insightContext)throw Error('No analysis context selected');verifyInsightContext(config.project,config.insightContext);return JSON.stringify(config.insightContext);},
     change_context(){if(!config.changeContext)throw Error('This is not a historical change run');return JSON.stringify(config.changeContext);},

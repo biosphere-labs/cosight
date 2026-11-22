@@ -35,7 +35,7 @@ async function open() {
   if(existing && path.resolve(existing.root || '') !== root) {
     throw Error('Another data directory is using this port. Choose another COSIGHT_PORT.');
   }
-  if(existing && existing.api < 17){
+  if(existing && existing.api < 18){
     if(!Number.isInteger(existing.pid) || existing.pid<=0 || !Number.isInteger(existing.api)) throw Error('Unrecognized server on the CoSight port.');
     // Same identity/root check as start-canvas.sh: upgrade the tour server, preserving its files.
     process.kill(existing.pid, 'SIGTERM');

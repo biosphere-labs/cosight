@@ -58,7 +58,7 @@ test('document POST routes enforce JSON, bounded parsing and local/configured or
  for(const origin of [configured,f.origin,f.origin.replace('127.0.0.1','localhost')])assert.equal((await f.post('/documents/select',{path:file},{headers:{origin}})).status,200);
  assert.equal((await f.post('/documents/start',{path:file,text:{not:'text'}})).status,400);
  let oversize;try{oversize=await f.post('/documents/select',{path:file,text:'x'.repeat(129*1024)});}catch(error){assert.match(error.message,/fetch failed|socket|network/i);}if(oversize)assert.ok(oversize.status>=400);
- assert.equal((await f.request('/whoami')).value.api,17);for(const asset of ['/document-ui.js','/document.css','/document-contracts.js'])assert.equal((await fetch(f.origin+asset)).status,200,asset);
+ assert.equal((await f.request('/whoami')).value.api,18);for(const asset of ['/document-ui.js','/document.css','/document-contracts.js'])assert.equal((await fetch(f.origin+asset)).status,200,asset);
 });
 
 
@@ -91,5 +91,5 @@ test('desktop document bridge selects Markdown with mocked Electron only and API
  assert.equal(await handlers.get('choose-document')(),'/existing/guide.markdown');assert.deepEqual(JSON.parse(JSON.stringify(dialogCalls[0])),{properties:['openFile'],filters:[{name:'Markdown documents',extensions:['md','markdown']}]});
  electron.dialog.showOpenDialog=async()=>({canceled:true,filePaths:[]});assert.equal(await handlers.get('choose-document')(),null);
  vm.runInNewContext(fs.readFileSync(new URL('../electron/preload.cjs',import.meta.url),'utf8'),{require:()=>({contextBridge:{exposeInMainWorld:(name,value)=>{exposed=value;}},ipcRenderer:{invoke:channel=>channel}})});assert.equal(exposed.chooseDocument(),'choose-document');
- assert.match(main,/existing\.api < 17/);assert.match(fs.readFileSync(new URL('../assets/start-canvas.sh',import.meta.url),'utf8'),/API_NEEDED=17/);
+ assert.match(main,/existing\.api < 18/);assert.match(fs.readFileSync(new URL('../assets/start-canvas.sh',import.meta.url),'utf8'),/API_NEEDED=18/);
 });
