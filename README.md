@@ -56,7 +56,7 @@ A guided reading uses section diagrams and pertinent code. When a section has no
 
 Download the macOS disk image for [Apple Silicon](https://github.com/biosphere-labs/cosight/releases/latest/download/CoSight-mac-arm64.dmg) or [Intel](https://github.com/biosphere-labs/cosight/releases/latest/download/CoSight-mac-x64.dmg). Open the DMG and drag CoSight to Applications. These early builds are unsigned and have not been notarized by Apple.
 
-Report bugs and feature requests in [GitHub Issues](https://github.com/biosphere-labs/cosight/issues).
+Contributions are welcome. [Open a GitHub issue](https://github.com/biosphere-labs/cosight/issues) with the question you were trying to answer and what would have helped. When adding a feature, document how to find it and record how you tested it. For desktop changes, rebuild, reinstall and try the feature in the installed app.
 
 ## Connect an agent
 
